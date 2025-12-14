@@ -10,7 +10,7 @@ import psycopg2
 from urllib.parse import urlparse
 
 # --- CONFIGURAZIONE TELEGRAM (Hardcoded) ---
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+TELEGRAM_BOT_TOKEN = "8481211490:AAHtgpfxxsvb6vkz3Y5tQNSVaMcgb0pIp4Q"
 
 # --- ASSET LIST COMPLETA ---
 POPULAR_ASSETS = {
@@ -29,72 +29,46 @@ POPULAR_ASSETS = {
 
 AUTO_SCAN_TICKERS = [v for k, v in POPULAR_ASSETS.items() if v is not None]
 
-# --- DATABASE MANAGER (Versione Robusta Anti-Crash) ---
+# --- DATABASE MANAGER (Cloud Compatible) ---
 class DBManager:
     def __init__(self):
+        # Cerca la variabile d'ambiente DATABASE_URL (impostata su Cloud)
         self.db_url = os.environ.get("DATABASE_URL")
         self.conn = self.connect()
-        
-        # FIX CRITICO: Creiamo le tabelle SOLO se la connessione c'è
+        # Creiamo le tabelle all'avvio se la connessione c'è
         if self.conn is not None:
             self.create_tables()
         else:
-            print("⚠️ ERRORE CRITICO: Impossibile connettersi al Database. L'app è in modalità limitata.")
+            print("⚠️ ATTENZIONE: Nessuna connessione al Database.")
 
     def connect(self):
         if self.db_url:
+            # Connessione a PostgreSQL (Cloud)
             try:
-                # Tentativo connessione Cloud
-                return psycopg2.connect(self.db_url, sslmode='require', connect_timeout=10)
+                return psycopg2.connect(self.db_url, sslmode='require')
             except Exception as e:
-                print(f"❌ Errore connessione DB Cloud: {e}")
+                print(f"Errore connessione DB Cloud: {e}")
                 return None
         else:
-            # Fallback locale
+            # Connessione a SQLite (Locale)
             return sqlite3.connect("investai_v10.db", check_same_thread=False)
 
     def get_cursor(self):
-        # Se la connessione è morta, proviamo a rianimarla
-        if self.conn is None or (self.db_url and self.conn.closed != 0):
-            self.conn = self.connect()
-        
-        if self.conn is not None:
+        # Helper per ottenere il cursore (gestisce riconnessioni)
+        try:
+            if hasattr(self.conn, 'closed') and self.conn.closed: # Solo per Postgres
+                self.conn = self.connect()
+            return self.conn.cursor()
+        except:
+            # Fallback generico
             try:
+                self.conn = self.connect()
                 return self.conn.cursor()
             except:
                 return None
-        return None
 
-    def execute_query(self, query, params=()):
-        c = self.get_cursor()
-        if c is None: return False # Se non c'è DB, esce senza crashare
-        
-        try:
-            if self.db_url: query = query.replace('?',('%s'))
-            c.execute(query, params)
-            if query.strip().upper().startswith("SELECT"):
-                return c.fetchall()
-            else:
-                self.conn.commit()
-                return True
-        except Exception as e:
-            print(f"Errore query: {e}")
-            if self.conn: self.conn.rollback()
-            return False
-
-    def execute_fetchone(self, query, params=()):
-        c = self.get_cursor()
-        if c is None: return None
-        
-        if self.db_url: query = query.replace('?',('%s'))
-        try:
-            c.execute(query, params)
-            return c.fetchone()
-        except: return None
-
-    # --- METODI CREAZIONE TABELLE (Spostati qui per usare execute_query) ---
     def create_tables(self):
-        # Usiamo query separate per sicurezza
+        # Definiamo le query separatamente per chiarezza
         q_users = '''CREATE TABLE IF NOT EXISTS users (
                      username TEXT PRIMARY KEY, 
                      password TEXT, 
@@ -110,15 +84,47 @@ class DBManager:
                      type TEXT, 
                      fee REAL DEFAULT 0.0)'''
         
-        # Adattamento per SQLite locale
+        # Adattamento per SQLite (che non usa SERIAL)
         if not self.db_url:
             q_tx = q_tx.replace("SERIAL PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT")
 
+        # Eseguiamo
         self.execute_query(q_users)
         self.execute_query(q_tx)
 
+    # --- QUERY HELPER (Con Rollback per Postgres) ---
+    def execute_query(self, query, params=()):
+        c = self.get_cursor()
+        if c is None: return False
+        
+        try:
+            if self.db_url: query = query.replace('?', '%s')
+            c.execute(query, params)
+            
+            if query.strip().upper().startswith("SELECT"):
+                return c.fetchall()
+            else:
+                self.conn.commit()
+                return True
+        except Exception as e:
+            print(f"Errore query ({query}): {e}")
+            if self.conn: self.conn.rollback() # FONDAMENTALE per Postgres
+            return False
+
+    def execute_fetchone(self, query, params=()):
+        c = self.get_cursor()
+        if c is None: return None
+        
+        try:
+            if self.db_url: query = query.replace('?', '%s')
+            c.execute(query, params)
+            return c.fetchone()
+        except Exception as e:
+            print(f"Errore fetchone ({query}): {e}")
+            if self.conn: self.conn.rollback() # FONDAMENTALE
+            return None
+
     # --- METODI UTENTE ---
-    
     def register_user(self, u, p):
         h = hashlib.sha256(p.encode()).hexdigest()
         return self.execute_query("INSERT INTO users (username, password) VALUES (?, ?)", (u, h))
@@ -142,7 +148,6 @@ class DBManager:
         return self.execute_query("SELECT username, tg_chat_id FROM users WHERE tg_chat_id IS NOT NULL AND tg_chat_id != ''") or []
 
     # --- METODI TRANSAZIONI ---
-
     def add_transaction(self, user, symbol, qty, price, date_str, type="BUY", fee=0.0):
         return self.execute_query(
             "INSERT INTO transactions (username, symbol, quantity, price, date, type, fee) VALUES (?, ?, ?, ?, ?, ?, ?)", 
@@ -171,6 +176,7 @@ class DBManager:
         if rows:
             for row in rows:
                 t_id, sym, qty, price, dt, type_tx = row[0], row[1], row[2], row[3], row[4], row[5]
+                # Gestione fee e tipi numerici
                 fee = float(row[6]) if len(row) > 6 and row[6] is not None else 0.0
                 qty = float(qty)
                 price = float(price)
@@ -193,6 +199,7 @@ class DBManager:
                 history.append({"symbol": sym, "date": dt, "price": price, "type": type_tx, "fee": fee})
 
         return {k: v for k, v in portfolio.items() if v["qty"] > 0.0001}, history
+
 
 # --- HELPER FUNCTIONS ---
 def validate_ticker(ticker):
@@ -435,7 +442,4 @@ def generate_portfolio_advice(df, avg_price, current_price):
             advice = f"Perdita importante ({pnl_pct:.1f}%) e trend negativo. La statistica suggerisce di tagliare le perdite."
             color = "#ffe6e6"
             
-
     return title, advice, color
-
-
