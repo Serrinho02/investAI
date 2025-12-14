@@ -9,10 +9,10 @@ import os
 import psycopg2
 from urllib.parse import urlparse
 
-# --- CONFIGURAZIONE TELEGRAM ---
+# --- CONFIGURAZIONE TELEGRAM (Hardcoded) ---
 TELEGRAM_BOT_TOKEN = "8481211490:AAHtgpfxxsvb6vkz3Y5tQNSVaMcgb0pIp4Q"
 
-# --- ASSET LIST ---
+# --- ASSET LIST COMPLETA ---
 POPULAR_ASSETS = {
     "S&P 500 (USA)": "SPY", "Nasdaq 100 (Tech)": "QQQ", 
     "Russell 2000 (Small Cap)": "IWM", "All-World": "VWCE.DE",
@@ -29,48 +29,82 @@ POPULAR_ASSETS = {
 
 AUTO_SCAN_TICKERS = [v for k, v in POPULAR_ASSETS.items() if v is not None]
 
-# --- DATABASE MANAGER (Versione Debug & Rollback) ---
+# --- DATABASE MANAGER (Cloud Compatible) ---
 class DBManager:
     def __init__(self):
-        self.db_url = os.environ.get("DATABASE_URL")
+        # Cerca la variabile d'ambiente DATABASE_URL (impostata su Cloud)
+        #self.db_url = os.environ.get("DATABASE_URL")
+        self.db_url = "postgresql://postgres:8uIbkkLv2WiNtkxm@db.kxergoynyjvbnsrgkobn.supabase.co:5432/postgres"
         self.conn = self.connect()
-        # Nota: Non chiamiamo create_tables qui per evitare errori all'avvio.
-        # Le tabelle esistono già su Supabase.
+        self.create_tables()
 
     def connect(self):
         if self.db_url:
+            # Connessione a PostgreSQL (Cloud)
             try:
-                # Timeout breve per non bloccare l'app
-                return psycopg2.connect(self.db_url, sslmode='require', connect_timeout=10)
+                return psycopg2.connect(self.db_url, sslmode='require')
             except Exception as e:
-                print(f"❌ Errore Connessione DB: {e}")
+                print(f"Errore connessione DB Cloud: {e}")
                 return None
         else:
+            # Connessione a SQLite (Locale)
             return sqlite3.connect("investai_v10.db", check_same_thread=False)
 
     def get_cursor(self):
-        # Logica di riconnessione automatica
-        if self.conn is None:
-            self.conn = self.connect()
-        
+        # Helper per ottenere il cursore (gestisce riconnessioni)
         try:
-            # Controllo specifico per Postgres
-            if self.db_url and (self.conn.closed != 0):
-                print("🔄 Riconnessione al DB in corso...")
-                self.conn = self.connect()
-            
             return self.conn.cursor()
         except:
-            return None
+            self.conn = self.connect()
+            return self.conn.cursor()
 
-    # --- QUERY HELPERS CON DEBUG ---
-    
+    def create_tables(self):
+        c = self.get_cursor()
+        
+        # Sintassi diversa per SQLite e Postgres
+        if self.db_url:
+            # POSTGRESQL
+            c.execute('''CREATE TABLE IF NOT EXISTS users (
+                         username TEXT PRIMARY KEY, 
+                         password TEXT, 
+                         tg_chat_id TEXT)''')
+            
+            c.execute('''CREATE TABLE IF NOT EXISTS transactions (
+                         id SERIAL PRIMARY KEY, 
+                         username TEXT, 
+                         symbol TEXT, 
+                         quantity REAL, 
+                         price REAL, 
+                         date TEXT, 
+                         type TEXT, 
+                         fee REAL DEFAULT 0.0)''')
+        else:
+            # SQLITE
+            c.execute('''CREATE TABLE IF NOT EXISTS users (
+                         username TEXT PRIMARY KEY, 
+                         password TEXT, 
+                         tg_chat_id TEXT)''')
+            
+            c.execute('''CREATE TABLE IF NOT EXISTS transactions (
+                         id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                         username TEXT, 
+                         symbol TEXT, 
+                         quantity REAL, 
+                         price REAL, 
+                         date TEXT, 
+                         type TEXT, 
+                         fee REAL DEFAULT 0.0)''')
+            
+        self.conn.commit()
+
+    # --- QUERY HELPER (Gestisce la differenza ? vs %s) ---
     def execute_query(self, query, params=()):
         c = self.get_cursor()
-        if c is None: return False
-        
         try:
-            if self.db_url: query = query.replace('?', '%s')
+            # Se siamo su Postgres, sostituiamo ? con %s
+            if self.db_url:
+                query = query.replace('?',('%s'))
+            
             c.execute(query, params)
             
             if query.strip().upper().startswith("SELECT"):
@@ -79,54 +113,29 @@ class DBManager:
                 self.conn.commit()
                 return True
         except Exception as e:
-            print(f"⚠️ Errore Query: {e}")
-            if self.conn: self.conn.rollback() # FONDAMENTALE: Pulisce la transazione
+            print(f"Errore query: {e}")
+            self.conn.rollback()
             return False
 
     def execute_fetchone(self, query, params=()):
         c = self.get_cursor()
-        if c is None: return None
-        
-        try:
-            # FIX: Facciamo rollback preventivo per assicurarci che la sessione sia pulita
-            if self.db_url: self.conn.rollback() 
-            
-            if self.db_url: query = query.replace('?', '%s')
-            c.execute(query, params)
-            return c.fetchone()
-        except Exception as e:
-            print(f"⚠️ Errore FetchOne: {e}")
-            if self.conn: self.conn.rollback()
-            return None
+        if self.db_url: query = query.replace('?',('%s'))
+        c.execute(query, params)
+        return c.fetchone()
 
-    # --- METODI UTENTE (DEBUGGATI) ---
+    # --- METODI UTENTE (Aggiornati con i nuovi Helper) ---
     
     def register_user(self, u, p):
         h = hashlib.sha256(p.encode()).hexdigest()
         return self.execute_query("INSERT INTO users (username, password) VALUES (?, ?)", (u, h))
 
     def login_user(self, u, p):
-        # 1. Hash della password
         h = hashlib.sha256(p.encode()).hexdigest()
-        
-        print(f"🔍 Tentativo Login per: {u}") # Debug nel log
-        
-        # 2. Eseguiamo la query
         res = self.execute_fetchone("SELECT * FROM users WHERE username=? AND password=?", (u, h))
-        
-        if res:
-            print("✅ Login Successo!")
-            return True
-        else:
-            # Debug: controlliamo se l'utente esiste almeno
-            check = self.execute_fetchone("SELECT * FROM users WHERE username=?", (u,))
-            if check:
-                print("❌ Utente esiste ma password errata.")
-            else:
-                print("❌ Utente non trovato nel DB.")
-            return False
+        return res is not None
 
     def save_chat_id(self, user, chat_id):
+        # Prima controlla se l'utente esiste
         exists = self.execute_fetchone("SELECT username FROM users WHERE username=?", (user,))
         if exists:
             return self.execute_query("UPDATE users SET tg_chat_id=? WHERE username=?", (chat_id, user))
@@ -137,9 +146,9 @@ class DBManager:
         return res[0] if res else ""
 
     def get_users_with_telegram(self):
-        return self.execute_query("SELECT username, tg_chat_id FROM users WHERE tg_chat_id IS NOT NULL AND tg_chat_id != ''") or []
+        return self.execute_query("SELECT username, tg_chat_id FROM users WHERE tg_chat_id IS NOT NULL AND tg_chat_id != ''")
 
-    # --- METODI TRANSAZIONI ---
+    # --- METODI TRANSAZIONI (Aggiornati) ---
     
     def add_transaction(self, user, symbol, qty, price, date_str, type="BUY", fee=0.0):
         return self.execute_query(
@@ -155,8 +164,7 @@ class DBManager:
         return self.execute_query("DELETE FROM transactions WHERE id=?", (t_id,))
 
     def get_all_transactions(self, user):
-        res = self.execute_query("SELECT id, symbol, quantity, price, date, type, fee FROM transactions WHERE username=? ORDER BY date DESC", (user,))
-        return res if res else []
+        return self.execute_query("SELECT id, symbol, quantity, price, date, type, fee FROM transactions WHERE username=? ORDER BY date DESC", (user,))
 
     def get_transaction_by_id(self, t_id):
         return self.execute_fetchone("SELECT id, symbol, quantity, price, date, type, fee FROM transactions WHERE id=?", (t_id,))
@@ -166,29 +174,31 @@ class DBManager:
         portfolio = {}
         history = [] 
         
-        if rows:
-            for row in rows:
-                t_id, sym, qty, price, dt, type_tx = row[0], row[1], row[2], row[3], row[4], row[5]
-                fee = float(row[6]) if len(row) > 6 and row[6] is not None else 0.0
-                qty = float(qty)
-                price = float(price)
+        for row in rows:
+            t_id, sym, qty, price, dt, type_tx = row[0], row[1], row[2], row[3], row[4], row[5]
+            # Gestione fee su Postgres (potrebbe tornare Decimal, convertiamo a float)
+            fee = float(row[6]) if len(row) > 6 and row[6] is not None else 0.0
+            
+            # Conversione esplicita a float per evitare errori con tipi Decimal di Postgres
+            qty = float(qty)
+            price = float(price)
 
-                if sym not in portfolio: portfolio[sym] = {"qty": 0.0, "total_cost": 0.0, "avg_price": 0.0}
+            if sym not in portfolio: portfolio[sym] = {"qty": 0.0, "total_cost": 0.0, "avg_price": 0.0}
+            
+            if type_tx == "BUY":
+                portfolio[sym]["qty"] += qty
+                portfolio[sym]["total_cost"] += (qty * price) + fee
+            elif type_tx == "SELL":
+                portfolio[sym]["qty"] -= qty
+                portfolio[sym]["total_cost"] -= (qty * price)
+            
+            if portfolio[sym]["qty"] > 0.000001:
+                portfolio[sym]["avg_price"] = portfolio[sym]["total_cost"] / portfolio[sym]["qty"]
+            else:
+                portfolio[sym]["avg_price"] = 0
+                portfolio[sym]["total_cost"] = 0
                 
-                if type_tx == "BUY":
-                    portfolio[sym]["qty"] += qty
-                    portfolio[sym]["total_cost"] += (qty * price) + fee
-                elif type_tx == "SELL":
-                    portfolio[sym]["qty"] -= qty
-                    portfolio[sym]["total_cost"] -= (qty * price)
-                
-                if portfolio[sym]["qty"] > 0.000001:
-                    portfolio[sym]["avg_price"] = portfolio[sym]["total_cost"] / portfolio[sym]["qty"]
-                else:
-                    portfolio[sym]["avg_price"] = 0
-                    portfolio[sym]["total_cost"] = 0
-                    
-                history.append({"symbol": sym, "date": dt, "price": price, "type": type_tx, "fee": fee})
+            history.append({"symbol": sym, "date": dt, "price": price, "type": type_tx, "fee": fee})
 
         return {k: v for k, v in portfolio.items() if v["qty"] > 0.0001}, history
 
@@ -229,35 +239,56 @@ def get_data_raw(tickers):
     except: return {}
 
 def process_df(df, data, t):
-    if len(df) < 205: return 
+    # Controllo lunghezza minima per la SMA 200
+    if len(df) < 205: 
+        return 
+    
     df = df.dropna(how='all')
+    
     try:
+        # Indicatori Base
         df['RSI'] = ta.rsi(df['Close'], length=14)
         df['SMA_200'] = ta.sma(df['Close'], length=200)
         df['SMA_50'] = ta.sma(df['Close'], length=50)
+        
+        # --- NUOVO: Calcolo ATR (Volatilità Dinamica) ---
+        # ATR misura la volatilità media (in dollari)
         df['ATR'] = ta.atr(df['High'], df['Low'], df['Close'], length=14)
 
+        # --- FIX ROBUSTEZZA PER MACD e BOLLINGER ---
+        # Usiamo iloc (posizione) invece dei nomi delle colonne per evitare KeyErrors
+        
+        # MACD (Ritorna: MACD Line, Histogram, Signal Line)
         macd = ta.macd(df['Close'])
         if macd is not None and not macd.empty:
+            # Colonna 0: MACD Line, Colonna 2: Signal Line
             df['MACD'] = macd.iloc[:, 0]
             df['MACD_SIGNAL'] = macd.iloc[:, 2]
-        else: return 
+        else:
+            return 
             
+        # Bollinger Bands (Ritorna: Lower, Mid, Upper, Bandwidth, Percent)
         bb = ta.bbands(df['Close'], length=20, std=2)
         if bb is not None and not bb.empty:
+            # Colonna 0: Lower Band (BBL), Colonna 2: Upper Band (BBU)
             df['BBL'] = bb.iloc[:, 0]
             df['BBU'] = bb.iloc[:, 2]
-        else: return
+        else:
+            return
             
+        # Pulizia NaN iniziali
         df_clean = df.dropna()
+        
         if not df_clean.empty:
             data[t] = df_clean
+            
     except Exception as e:
         print(f"Errore calcolo indicatori per {t}: {e}")
         pass
 
 # --- STRATEGIA DI SCANSIONE (MERCATO) ---
 def evaluate_strategy_full(df):
+    # Verifica esistenza colonne (incluso ATR)
     required_cols = ['SMA_200', 'MACD', 'MACD_SIGNAL', 'BBL', 'BBU', 'RSI', 'ATR']
     for col in required_cols:
         if col not in df.columns:
@@ -278,6 +309,7 @@ def evaluate_strategy_full(df):
         
         max_price = df['Close'].max()
         drawdown = ((last_close - max_price) / max_price) * 100
+        
         is_bullish = last_close > last_sma200
         trend_label = "BULLISH (Rialzista)" if is_bullish else "BEARISH (Ribassista)"
         
@@ -285,11 +317,16 @@ def evaluate_strategy_full(df):
         color = "#fcfcfc"
         reason = "Nessun segnale operativo chiaro."
         
+        # --- CALCOLO TARGET & RISCHIO CON VOLATILITÀ (ATR) ---
+        # Il target tecnico è flessibile: Banda alta oppure 2 volte l'ATR sopra il prezzo
         technical_target = max(last_bbu, last_close + (2 * last_atr))
         potential_upside = ((technical_target - last_close) / last_close) * 100
+
+        # Il rischio è la Banda bassa oppure 2 volte l'ATR sotto il prezzo
         technical_risk = min(last_bbl, last_close - (2 * last_atr))
         potential_downside = ((technical_risk - last_close) / last_close) * 100
         
+        # --- LOGICA STRATEGICA ---
         if is_bullish:
             if last_rsi < 30 and last_close <= last_bbl:
                 action = "💎 OPPORTUNITÀ D'ORO"
@@ -303,13 +340,14 @@ def evaluate_strategy_full(df):
                  action = "💰 VENDI PARZIALE"
                  color = "#ffdddd"
                  reason = "Prezzo esteso. Rischio ritracciamento."
-                 technical_risk = last_sma200 
+                 technical_risk = last_sma200 # Se si vende, il rischio è tornare alla media
                  potential_downside = ((technical_risk - last_close) / last_close) * 100
             else:
                  action = "🚀 TREND SOLIDO"
                  color = "#e6f4ea"
                  reason = "Il trend è sano. Lascia correre."
-        else:
+
+        else: # BEARISH
             if last_rsi < 30 and last_close < last_bbl:
                  action = "⚠️ TENTATIVO RISCHIOSO"
                  color = "#fff4cc"
@@ -318,13 +356,14 @@ def evaluate_strategy_full(df):
                  action = "⛔ STAI ALLA LARGA"
                  color = "#fcfcfc"
                  reason = "Trend ribassista. Momentum negativo."
-                 potential_upside = 0
+                 potential_upside = 0 # Nessun upside in trend bear forte
                  
         return trend_label, action, color, last_close, last_rsi, drawdown, reason, technical_target, potential_upside, technical_risk, potential_downside
+        
     except Exception as e:
         return "ERR", "Errore", "#eee", 0, 0, 0, str(e), 0, 0, 0, 0
 
-# --- STRATEGIA DI PORTAFOGLIO ---
+# --- STRATEGIA DI PORTAFOGLIO (CON ATR DINAMICO) ---
 def generate_portfolio_advice(df, avg_price, current_price):
     if 'RSI' not in df.columns or 'SMA_200' not in df.columns or 'ATR' not in df.columns:
         return "✋ DATI MANCANTI", "Impossibile calcolare strategia.", "#eee"
@@ -332,16 +371,31 @@ def generate_portfolio_advice(df, avg_price, current_price):
     rsi = df['RSI'].iloc[-1]
     sma = df['SMA_200'].iloc[-1]
     atr = df['ATR'].iloc[-1]
+    
     trend = "BULL" if current_price > sma else "BEAR"
     pnl_pct = ((current_price - avg_price) / avg_price) * 100
+    
+    # --- CALCOLO SOGLIE DINAMICHE ---
+    # Convertiamo l'ATR in percentuale rispetto al prezzo attuale
     atr_pct = (atr / current_price) * 100
     
+    # Definiamo le fasce basandoci sulla volatilità intrinseca dell'asset
+    # Un asset volatile (ATR 5%) avrà fasce larghe. Un asset stabile (ATR 0.5%) fasce strette.
+    
+    # Fascia 1: Protezione Guadagni (Stop in profit) -> circa 2-6 volte l'ATR
     threshold_low = max(5.0, 2 * atr_pct) 
+    
+    # Fascia 2: Target Profitto (Take Profit) -> circa 6-12 volte l'ATR
     threshold_mid = max(15.0, 6 * atr_pct)
+    
+    # Fascia 3: Moonbag (Super Trend) -> oltre 12 volte l'ATR
     threshold_high = max(40.0, 12 * atr_pct)
 
     title, advice, color = "✋ MANTIENI", "Situazione stabile.", "#fcfcfc"
     
+    # --- LOGICA A GRADINI DINAMICA ---
+    
+    # FASCIA 3: SUPER GUADAGNO (> High Threshold)
     if pnl_pct > threshold_high:
         if trend == "BEAR":
             title = "🚨 INCASSA TUTTO (Super Profit)"
@@ -355,6 +409,8 @@ def generate_portfolio_advice(df, avg_price, current_price):
             title = "🚀 MOONBAG (Trailing Stop)"
             advice = f"Performance stellare (+{pnl_pct:.1f}%). Il trend regge. Imposta uno Stop Loss mentale a +{pnl_pct-10:.0f}% e lascia correre."
             color = "#e6f4ea"
+
+    # FASCIA 2: OTTIMO GUADAGNO (tra Mid e High)
     elif threshold_mid < pnl_pct <= threshold_high:
         if trend == "BEAR":
             title = "💰 PROTEGGI IL BOTTINO"
@@ -368,12 +424,16 @@ def generate_portfolio_advice(df, avg_price, current_price):
             title = "📈 TREND SANO"
             advice = f"Il guadagno è solido (+{pnl_pct:.1f}%) e c'è ancora spazio per salire. Mantieni."
             color = "#f0f8ff"
+
+    # FASCIA 1: GUADAGNO INIZIALE (tra Low e Mid)
     elif threshold_low < pnl_pct <= threshold_mid:
         if trend == "BEAR":
             title = "⚠️ ATTENZIONE (Break Even)"
             advice = f"Sei in utile (+{pnl_pct:.1f}%) ma il trend è brutto. Alza lo Stop Loss al prezzo di ingresso per non perdere soldi."
             color = "#ffffcc"
-    elif pnl_pct < -threshold_low:
+
+    # FASCIA 0: PERDITA O PARITÀ (< Low Threshold)
+    elif pnl_pct < -threshold_low: # Usiamo l'ATR anche per lo stop loss dinamico!
         if trend == "BULL" and rsi < 40:
             title = "🛒 MEDIA IL PREZZO (Accumulo)"
             advice = f"Sei sotto del {pnl_pct:.1f}%, ma il trend di fondo è rialzista e siamo a sconto. Occasione per abbassare il prezzo medio."
