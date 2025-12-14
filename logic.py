@@ -29,6 +29,7 @@ AUTO_SCAN_TICKERS = [v for k, v in POPULAR_ASSETS.items() if v is not None]
 # --- DATABASE MANAGER (Supabase API Version) ---
 class DBManager:
     def __init__(self):
+        self.db_url = "SUPABASE_API_CONNECTION_ACTIVE"
         try:
             # Inizializza la connessione usando i secrets [connections.supabase]
             self.conn = st.connection("supabase", type=SupabaseConnection)
@@ -397,3 +398,4 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
