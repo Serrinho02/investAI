@@ -10,7 +10,7 @@ import psycopg2
 from urllib.parse import urlparse
 
 # --- CONFIGURAZIONE TELEGRAM (Hardcoded) ---
-TELEGRAM_BOT_TOKEN = "8481211490:AAHtgpfxxsvb6vkz3Y5tQNSVaMcgb0pIp4Q"
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
 # --- ASSET LIST COMPLETA ---
 POPULAR_ASSETS = {
@@ -35,11 +35,7 @@ class DBManager:
         # Cerca la variabile d'ambiente DATABASE_URL (impostata su Cloud)
         self.db_url = os.environ.get("DATABASE_URL")
         self.conn = self.connect()
-        # Creiamo le tabelle all'avvio se la connessione c'è
-        if self.conn is not None:
-            self.create_tables()
-        else:
-            print("⚠️ ATTENZIONE: Nessuna connessione al Database.")
+        self.create_tables()
 
     def connect(self):
         if self.db_url:
@@ -56,49 +52,58 @@ class DBManager:
     def get_cursor(self):
         # Helper per ottenere il cursore (gestisce riconnessioni)
         try:
-            if hasattr(self.conn, 'closed') and self.conn.closed: # Solo per Postgres
-                self.conn = self.connect()
             return self.conn.cursor()
         except:
-            # Fallback generico
-            try:
-                self.conn = self.connect()
-                return self.conn.cursor()
-            except:
-                return None
+            self.conn = self.connect()
+            return self.conn.cursor()
 
     def create_tables(self):
-        # Definiamo le query separatamente per chiarezza
-        q_users = '''CREATE TABLE IF NOT EXISTS users (
-                     username TEXT PRIMARY KEY, 
-                     password TEXT, 
-                     tg_chat_id TEXT)'''
-                     
-        q_tx = '''CREATE TABLE IF NOT EXISTS transactions (
-                     id SERIAL PRIMARY KEY, 
-                     username TEXT, 
-                     symbol TEXT, 
-                     quantity REAL, 
-                     price REAL, 
-                     date TEXT, 
-                     type TEXT, 
-                     fee REAL DEFAULT 0.0)'''
+        c = self.get_cursor()
         
-        # Adattamento per SQLite (che non usa SERIAL)
-        if not self.db_url:
-            q_tx = q_tx.replace("SERIAL PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT")
+        # Sintassi diversa per SQLite e Postgres
+        if self.db_url:
+            # POSTGRESQL
+            c.execute('''CREATE TABLE IF NOT EXISTS users (
+                         username TEXT PRIMARY KEY, 
+                         password TEXT, 
+                         tg_chat_id TEXT)''')
+            
+            c.execute('''CREATE TABLE IF NOT EXISTS transactions (
+                         id SERIAL PRIMARY KEY, 
+                         username TEXT, 
+                         symbol TEXT, 
+                         quantity REAL, 
+                         price REAL, 
+                         date TEXT, 
+                         type TEXT, 
+                         fee REAL DEFAULT 0.0)''')
+        else:
+            # SQLITE
+            c.execute('''CREATE TABLE IF NOT EXISTS users (
+                         username TEXT PRIMARY KEY, 
+                         password TEXT, 
+                         tg_chat_id TEXT)''')
+            
+            c.execute('''CREATE TABLE IF NOT EXISTS transactions (
+                         id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                         username TEXT, 
+                         symbol TEXT, 
+                         quantity REAL, 
+                         price REAL, 
+                         date TEXT, 
+                         type TEXT, 
+                         fee REAL DEFAULT 0.0)''')
+            
+        self.conn.commit()
 
-        # Eseguiamo
-        self.execute_query(q_users)
-        self.execute_query(q_tx)
-
-    # --- QUERY HELPER (Con Rollback per Postgres) ---
+    # --- QUERY HELPER (Gestisce la differenza ? vs %s) ---
     def execute_query(self, query, params=()):
         c = self.get_cursor()
-        if c is None: return False
-        
         try:
-            if self.db_url: query = query.replace('?', '%s')
+            # Se siamo su Postgres, sostituiamo ? con %s
+            if self.db_url:
+                query = query.replace('?',('%s'))
+            
             c.execute(query, params)
             
             if query.strip().upper().startswith("SELECT"):
@@ -107,24 +112,18 @@ class DBManager:
                 self.conn.commit()
                 return True
         except Exception as e:
-            print(f"Errore query ({query}): {e}")
-            if self.conn: self.conn.rollback() # FONDAMENTALE per Postgres
+            print(f"Errore query: {e}")
+            self.conn.rollback()
             return False
 
     def execute_fetchone(self, query, params=()):
         c = self.get_cursor()
-        if c is None: return None
-        
-        try:
-            if self.db_url: query = query.replace('?', '%s')
-            c.execute(query, params)
-            return c.fetchone()
-        except Exception as e:
-            print(f"Errore fetchone ({query}): {e}")
-            if self.conn: self.conn.rollback() # FONDAMENTALE
-            return None
+        if self.db_url: query = query.replace('?',('%s'))
+        c.execute(query, params)
+        return c.fetchone()
 
-    # --- METODI UTENTE ---
+    # --- METODI UTENTE (Aggiornati con i nuovi Helper) ---
+    
     def register_user(self, u, p):
         h = hashlib.sha256(p.encode()).hexdigest()
         return self.execute_query("INSERT INTO users (username, password) VALUES (?, ?)", (u, h))
@@ -135,6 +134,7 @@ class DBManager:
         return res is not None
 
     def save_chat_id(self, user, chat_id):
+        # Prima controlla se l'utente esiste
         exists = self.execute_fetchone("SELECT username FROM users WHERE username=?", (user,))
         if exists:
             return self.execute_query("UPDATE users SET tg_chat_id=? WHERE username=?", (chat_id, user))
@@ -145,9 +145,10 @@ class DBManager:
         return res[0] if res else ""
 
     def get_users_with_telegram(self):
-        return self.execute_query("SELECT username, tg_chat_id FROM users WHERE tg_chat_id IS NOT NULL AND tg_chat_id != ''") or []
+        return self.execute_query("SELECT username, tg_chat_id FROM users WHERE tg_chat_id IS NOT NULL AND tg_chat_id != ''")
 
-    # --- METODI TRANSAZIONI ---
+    # --- METODI TRANSAZIONI (Aggiornati) ---
+    
     def add_transaction(self, user, symbol, qty, price, date_str, type="BUY", fee=0.0):
         return self.execute_query(
             "INSERT INTO transactions (username, symbol, quantity, price, date, type, fee) VALUES (?, ?, ?, ?, ?, ?, ?)", 
@@ -162,8 +163,7 @@ class DBManager:
         return self.execute_query("DELETE FROM transactions WHERE id=?", (t_id,))
 
     def get_all_transactions(self, user):
-        res = self.execute_query("SELECT id, symbol, quantity, price, date, type, fee FROM transactions WHERE username=? ORDER BY date DESC", (user,))
-        return res if res else []
+        return self.execute_query("SELECT id, symbol, quantity, price, date, type, fee FROM transactions WHERE username=? ORDER BY date DESC", (user,))
 
     def get_transaction_by_id(self, t_id):
         return self.execute_fetchone("SELECT id, symbol, quantity, price, date, type, fee FROM transactions WHERE id=?", (t_id,))
@@ -173,33 +173,33 @@ class DBManager:
         portfolio = {}
         history = [] 
         
-        if rows:
-            for row in rows:
-                t_id, sym, qty, price, dt, type_tx = row[0], row[1], row[2], row[3], row[4], row[5]
-                # Gestione fee e tipi numerici
-                fee = float(row[6]) if len(row) > 6 and row[6] is not None else 0.0
-                qty = float(qty)
-                price = float(price)
+        for row in rows:
+            t_id, sym, qty, price, dt, type_tx = row[0], row[1], row[2], row[3], row[4], row[5]
+            # Gestione fee su Postgres (potrebbe tornare Decimal, convertiamo a float)
+            fee = float(row[6]) if len(row) > 6 and row[6] is not None else 0.0
+            
+            # Conversione esplicita a float per evitare errori con tipi Decimal di Postgres
+            qty = float(qty)
+            price = float(price)
 
-                if sym not in portfolio: portfolio[sym] = {"qty": 0.0, "total_cost": 0.0, "avg_price": 0.0}
+            if sym not in portfolio: portfolio[sym] = {"qty": 0.0, "total_cost": 0.0, "avg_price": 0.0}
+            
+            if type_tx == "BUY":
+                portfolio[sym]["qty"] += qty
+                portfolio[sym]["total_cost"] += (qty * price) + fee
+            elif type_tx == "SELL":
+                portfolio[sym]["qty"] -= qty
+                portfolio[sym]["total_cost"] -= (qty * price)
+            
+            if portfolio[sym]["qty"] > 0.000001:
+                portfolio[sym]["avg_price"] = portfolio[sym]["total_cost"] / portfolio[sym]["qty"]
+            else:
+                portfolio[sym]["avg_price"] = 0
+                portfolio[sym]["total_cost"] = 0
                 
-                if type_tx == "BUY":
-                    portfolio[sym]["qty"] += qty
-                    portfolio[sym]["total_cost"] += (qty * price) + fee
-                elif type_tx == "SELL":
-                    portfolio[sym]["qty"] -= qty
-                    portfolio[sym]["total_cost"] -= (qty * price)
-                
-                if portfolio[sym]["qty"] > 0.000001:
-                    portfolio[sym]["avg_price"] = portfolio[sym]["total_cost"] / portfolio[sym]["qty"]
-                else:
-                    portfolio[sym]["avg_price"] = 0
-                    portfolio[sym]["total_cost"] = 0
-                    
-                history.append({"symbol": sym, "date": dt, "price": price, "type": type_tx, "fee": fee})
+            history.append({"symbol": sym, "date": dt, "price": price, "type": type_tx, "fee": fee})
 
         return {k: v for k, v in portfolio.items() if v["qty"] > 0.0001}, history
-
 
 # --- HELPER FUNCTIONS ---
 def validate_ticker(ticker):
