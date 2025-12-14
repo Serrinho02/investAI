@@ -168,6 +168,12 @@ class DBManager:
     def get_users_with_telegram(self):
         return self.execute_query("SELECT username, tg_chat_id FROM users WHERE tg_chat_id IS NOT NULL AND tg_chat_id != ''")
 
+    def get_user_by_chat_id(self, chat_id):
+        """Trova l'username del sito partendo dal Chat ID di Telegram"""
+        res = self.execute_fetchone("SELECT username FROM users WHERE tg_chat_id=?", (str(chat_id),))
+        return res[0] if res else None
+
+    
     # --- METODI TRANSAZIONI ---
     
     def add_transaction(self, user, symbol, qty, price, date_str, type="BUY", fee=0.0):
@@ -429,4 +435,5 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
