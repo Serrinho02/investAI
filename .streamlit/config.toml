@@ -3,7 +3,10 @@ toolbarMode = "viewer"  # Nasconde la toolbar sviluppatore (rerun, settings)
 
 [theme]
 base = "light"          # Forza il tema scuro (opzionale, ma professionale)
-primaryColor = "#FFD700" # Oro per i bottoni (opzionale)
+primaryColor = "#006400"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"
 
 [browser]
 gatherUsageStats = false # Disabilita invio statistiche
