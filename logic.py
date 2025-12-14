@@ -36,8 +36,8 @@ class DBManager:
         self.db_url = None
         
         # 1. Tenta di leggere la connessione dai Secrets di Streamlit (Priorità Cloud)
-        if "DATABASE_URL" in st.secrets:
-            self.db_url = st.secrets["DATABASE_URL"]
+        if "SUPABASE_URL" in st.secrets:
+            self.db_url = st.secrets["SUPABASE_URL"]
             
             # Fix per compatibilità SQLAlchemy/Psycopg2 (alcuni provider usano postgres:// invece di postgresql://)
             if self.db_url and self.db_url.startswith("postgres://"):
@@ -435,4 +435,5 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
