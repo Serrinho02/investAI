@@ -11,8 +11,7 @@ import psycopg2
 from urllib.parse import urlparse
 
 # --- CONFIGURAZIONE TELEGRAM ---
-# Nota: Per sicurezza, in futuro dovresti mettere anche questo nei Secrets.
-TELEGRAM_BOT_TOKEN = "8481211490:AAHtgpfxxsvb6vkz3Y5tQNSVaMcgb0pIp4Q"
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
 # --- ASSET LIST COMPLETA ---
 POPULAR_ASSETS = {
@@ -430,3 +429,4 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
