@@ -37,6 +37,22 @@ if 'bot_active' not in st.session_state:
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="InvestAI Ultimate", layout="wide", page_icon="💎")
 
+# --- NASCONDI MENU E FOOTER ---
+st.markdown("""
+    <style>
+        /* Nasconde il menu hamburger (le tre lineette in alto a destra) */
+        #MainMenu {visibility: hidden;}
+        /* Nasconde il pulsante "Deploy" o "Manage" */
+        .stDeployButton {display: none;}
+        /* Nasconde la barra colorata in alto (Header) */
+        header {visibility: hidden;}
+        /* Nasconde il footer "Made with Streamlit" */
+        footer {visibility: hidden;}
+        /* Opzionale: Nasconde la modalità scura/chiara se vuoi bloccarla */
+        /* [data-testid="stHeader"] {display: none;} */
+    </style>
+""", unsafe_allow_html=True)
+
 st.markdown("""
 <style>
     [data-testid="stMetricValue"] { font-size: 1.8rem; }
@@ -645,4 +661,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
