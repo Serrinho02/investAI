@@ -1,3 +1,4 @@
+import streamlit as st  # Necessario per leggere i Secrets
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
@@ -9,7 +10,8 @@ import os
 import psycopg2
 from urllib.parse import urlparse
 
-# --- CONFIGURAZIONE TELEGRAM (Hardcoded) ---
+# --- CONFIGURAZIONE TELEGRAM ---
+# Nota: Per sicurezza, in futuro dovresti mettere anche questo nei Secrets.
 TELEGRAM_BOT_TOKEN = "8481211490:AAHtgpfxxsvb6vkz3Y5tQNSVaMcgb0pIp4Q"
 
 # --- ASSET LIST COMPLETA ---
@@ -29,25 +31,45 @@ POPULAR_ASSETS = {
 
 AUTO_SCAN_TICKERS = [v for k, v in POPULAR_ASSETS.items() if v is not None]
 
-# --- DATABASE MANAGER (Cloud Compatible) ---
+# --- DATABASE MANAGER (Cloud Compatible via Streamlit Secrets) ---
 class DBManager:
     def __init__(self):
-        # Cerca la variabile d'ambiente DATABASE_URL (impostata su Cloud)
-        #self.db_url = os.environ.get("DATABASE_URL")
-        self.db_url = "postgresql://postgres:8uIbkkLv2WiNtkxm@db.kxergoynyjvbnsrgkobn.supabase.co:5432/postgres"
+        self.db_url = None
+        
+        # 1. Tenta di leggere la connessione dai Secrets di Streamlit (Priorità Cloud)
+        if "DATABASE_URL" in st.secrets:
+            self.db_url = st.secrets["DATABASE_URL"]
+            
+            # Fix per compatibilità SQLAlchemy/Psycopg2 (alcuni provider usano postgres:// invece di postgresql://)
+            if self.db_url and self.db_url.startswith("postgres://"):
+                self.db_url = self.db_url.replace("postgres://", "postgresql://", 1)
+        
+        # 2. Fallback: Variabile d'ambiente (per Docker o uso locale avanzato)
+        elif "DATABASE_URL" in os.environ:
+            self.db_url = os.environ.get("DATABASE_URL")
+
+        # Avvio connessione
         self.conn = self.connect()
+        
+        # Controllo errori critici su Cloud
+        if self.conn is None and self.db_url is not None:
+             st.error("❌ Errore critico: Impossibile connettersi al Database Cloud. Controlla i Secrets.")
+             st.stop()
+
         self.create_tables()
 
     def connect(self):
+        # Se abbiamo un URL (Cloud/Postgres)
         if self.db_url:
-            # Connessione a PostgreSQL (Cloud)
             try:
+                # sslmode='require' è fondamentale per Supabase/Cloud
                 return psycopg2.connect(self.db_url, sslmode='require')
             except Exception as e:
                 print(f"Errore connessione DB Cloud: {e}")
                 return None
         else:
-            # Connessione a SQLite (Locale)
+            # Se NON abbiamo un URL, usiamo SQLite (Locale)
+            print("⚠️ Nessun DATABASE_URL trovato. Uso SQLite locale (i dati non persisteranno su Streamlit Cloud).")
             return sqlite3.connect("investai_v10.db", check_same_thread=False)
 
     def get_cursor(self):
@@ -123,7 +145,7 @@ class DBManager:
         c.execute(query, params)
         return c.fetchone()
 
-    # --- METODI UTENTE (Aggiornati con i nuovi Helper) ---
+    # --- METODI UTENTE ---
     
     def register_user(self, u, p):
         h = hashlib.sha256(p.encode()).hexdigest()
@@ -135,7 +157,6 @@ class DBManager:
         return res is not None
 
     def save_chat_id(self, user, chat_id):
-        # Prima controlla se l'utente esiste
         exists = self.execute_fetchone("SELECT username FROM users WHERE username=?", (user,))
         if exists:
             return self.execute_query("UPDATE users SET tg_chat_id=? WHERE username=?", (chat_id, user))
@@ -148,7 +169,7 @@ class DBManager:
     def get_users_with_telegram(self):
         return self.execute_query("SELECT username, tg_chat_id FROM users WHERE tg_chat_id IS NOT NULL AND tg_chat_id != ''")
 
-    # --- METODI TRANSAZIONI (Aggiornati) ---
+    # --- METODI TRANSAZIONI ---
     
     def add_transaction(self, user, symbol, qty, price, date_str, type="BUY", fee=0.0):
         return self.execute_query(
@@ -176,10 +197,10 @@ class DBManager:
         
         for row in rows:
             t_id, sym, qty, price, dt, type_tx = row[0], row[1], row[2], row[3], row[4], row[5]
-            # Gestione fee su Postgres (potrebbe tornare Decimal, convertiamo a float)
+            # Gestione fee su Postgres
             fee = float(row[6]) if len(row) > 6 and row[6] is not None else 0.0
             
-            # Conversione esplicita a float per evitare errori con tipi Decimal di Postgres
+            # Conversione float
             qty = float(qty)
             price = float(price)
 
@@ -239,46 +260,32 @@ def get_data_raw(tickers):
     except: return {}
 
 def process_df(df, data, t):
-    # Controllo lunghezza minima per la SMA 200
     if len(df) < 205: 
         return 
     
     df = df.dropna(how='all')
     
     try:
-        # Indicatori Base
         df['RSI'] = ta.rsi(df['Close'], length=14)
         df['SMA_200'] = ta.sma(df['Close'], length=200)
         df['SMA_50'] = ta.sma(df['Close'], length=50)
-        
-        # --- NUOVO: Calcolo ATR (Volatilità Dinamica) ---
-        # ATR misura la volatilità media (in dollari)
         df['ATR'] = ta.atr(df['High'], df['Low'], df['Close'], length=14)
 
-        # --- FIX ROBUSTEZZA PER MACD e BOLLINGER ---
-        # Usiamo iloc (posizione) invece dei nomi delle colonne per evitare KeyErrors
-        
-        # MACD (Ritorna: MACD Line, Histogram, Signal Line)
         macd = ta.macd(df['Close'])
         if macd is not None and not macd.empty:
-            # Colonna 0: MACD Line, Colonna 2: Signal Line
             df['MACD'] = macd.iloc[:, 0]
             df['MACD_SIGNAL'] = macd.iloc[:, 2]
         else:
             return 
             
-        # Bollinger Bands (Ritorna: Lower, Mid, Upper, Bandwidth, Percent)
         bb = ta.bbands(df['Close'], length=20, std=2)
         if bb is not None and not bb.empty:
-            # Colonna 0: Lower Band (BBL), Colonna 2: Upper Band (BBU)
             df['BBL'] = bb.iloc[:, 0]
             df['BBU'] = bb.iloc[:, 2]
         else:
             return
             
-        # Pulizia NaN iniziali
         df_clean = df.dropna()
-        
         if not df_clean.empty:
             data[t] = df_clean
             
@@ -286,9 +293,8 @@ def process_df(df, data, t):
         print(f"Errore calcolo indicatori per {t}: {e}")
         pass
 
-# --- STRATEGIA DI SCANSIONE (MERCATO) ---
+# --- STRATEGIA DI SCANSIONE ---
 def evaluate_strategy_full(df):
-    # Verifica esistenza colonne (incluso ATR)
     required_cols = ['SMA_200', 'MACD', 'MACD_SIGNAL', 'BBL', 'BBU', 'RSI', 'ATR']
     for col in required_cols:
         if col not in df.columns:
@@ -317,16 +323,12 @@ def evaluate_strategy_full(df):
         color = "#fcfcfc"
         reason = "Nessun segnale operativo chiaro."
         
-        # --- CALCOLO TARGET & RISCHIO CON VOLATILITÀ (ATR) ---
-        # Il target tecnico è flessibile: Banda alta oppure 2 volte l'ATR sopra il prezzo
         technical_target = max(last_bbu, last_close + (2 * last_atr))
         potential_upside = ((technical_target - last_close) / last_close) * 100
 
-        # Il rischio è la Banda bassa oppure 2 volte l'ATR sotto il prezzo
         technical_risk = min(last_bbl, last_close - (2 * last_atr))
         potential_downside = ((technical_risk - last_close) / last_close) * 100
         
-        # --- LOGICA STRATEGICA ---
         if is_bullish:
             if last_rsi < 30 and last_close <= last_bbl:
                 action = "💎 OPPORTUNITÀ D'ORO"
@@ -340,7 +342,7 @@ def evaluate_strategy_full(df):
                  action = "💰 VENDI PARZIALE"
                  color = "#ffdddd"
                  reason = "Prezzo esteso. Rischio ritracciamento."
-                 technical_risk = last_sma200 # Se si vende, il rischio è tornare alla media
+                 technical_risk = last_sma200 
                  potential_downside = ((technical_risk - last_close) / last_close) * 100
             else:
                  action = "🚀 TREND SOLIDO"
@@ -356,14 +358,14 @@ def evaluate_strategy_full(df):
                  action = "⛔ STAI ALLA LARGA"
                  color = "#fcfcfc"
                  reason = "Trend ribassista. Momentum negativo."
-                 potential_upside = 0 # Nessun upside in trend bear forte
+                 potential_upside = 0 
                  
         return trend_label, action, color, last_close, last_rsi, drawdown, reason, technical_target, potential_upside, technical_risk, potential_downside
         
     except Exception as e:
         return "ERR", "Errore", "#eee", 0, 0, 0, str(e), 0, 0, 0, 0
 
-# --- STRATEGIA DI PORTAFOGLIO (CON ATR DINAMICO) ---
+# --- STRATEGIA DI PORTAFOGLIO ---
 def generate_portfolio_advice(df, avg_price, current_price):
     if 'RSI' not in df.columns or 'SMA_200' not in df.columns or 'ATR' not in df.columns:
         return "✋ DATI MANCANTI", "Impossibile calcolare strategia.", "#eee"
@@ -375,27 +377,14 @@ def generate_portfolio_advice(df, avg_price, current_price):
     trend = "BULL" if current_price > sma else "BEAR"
     pnl_pct = ((current_price - avg_price) / avg_price) * 100
     
-    # --- CALCOLO SOGLIE DINAMICHE ---
-    # Convertiamo l'ATR in percentuale rispetto al prezzo attuale
     atr_pct = (atr / current_price) * 100
     
-    # Definiamo le fasce basandoci sulla volatilità intrinseca dell'asset
-    # Un asset volatile (ATR 5%) avrà fasce larghe. Un asset stabile (ATR 0.5%) fasce strette.
-    
-    # Fascia 1: Protezione Guadagni (Stop in profit) -> circa 2-6 volte l'ATR
     threshold_low = max(5.0, 2 * atr_pct) 
-    
-    # Fascia 2: Target Profitto (Take Profit) -> circa 6-12 volte l'ATR
     threshold_mid = max(15.0, 6 * atr_pct)
-    
-    # Fascia 3: Moonbag (Super Trend) -> oltre 12 volte l'ATR
     threshold_high = max(40.0, 12 * atr_pct)
 
     title, advice, color = "✋ MANTIENI", "Situazione stabile.", "#fcfcfc"
     
-    # --- LOGICA A GRADINI DINAMICA ---
-    
-    # FASCIA 3: SUPER GUADAGNO (> High Threshold)
     if pnl_pct > threshold_high:
         if trend == "BEAR":
             title = "🚨 INCASSA TUTTO (Super Profit)"
@@ -410,7 +399,6 @@ def generate_portfolio_advice(df, avg_price, current_price):
             advice = f"Performance stellare (+{pnl_pct:.1f}%). Il trend regge. Imposta uno Stop Loss mentale a +{pnl_pct-10:.0f}% e lascia correre."
             color = "#e6f4ea"
 
-    # FASCIA 2: OTTIMO GUADAGNO (tra Mid e High)
     elif threshold_mid < pnl_pct <= threshold_high:
         if trend == "BEAR":
             title = "💰 PROTEGGI IL BOTTINO"
@@ -425,15 +413,13 @@ def generate_portfolio_advice(df, avg_price, current_price):
             advice = f"Il guadagno è solido (+{pnl_pct:.1f}%) e c'è ancora spazio per salire. Mantieni."
             color = "#f0f8ff"
 
-    # FASCIA 1: GUADAGNO INIZIALE (tra Low e Mid)
     elif threshold_low < pnl_pct <= threshold_mid:
         if trend == "BEAR":
             title = "⚠️ ATTENZIONE (Break Even)"
             advice = f"Sei in utile (+{pnl_pct:.1f}%) ma il trend è brutto. Alza lo Stop Loss al prezzo di ingresso per non perdere soldi."
             color = "#ffffcc"
 
-    # FASCIA 0: PERDITA O PARITÀ (< Low Threshold)
-    elif pnl_pct < -threshold_low: # Usiamo l'ATR anche per lo stop loss dinamico!
+    elif pnl_pct < -threshold_low: 
         if trend == "BULL" and rsi < 40:
             title = "🛒 MEDIA IL PREZZO (Accumulo)"
             advice = f"Sei sotto del {pnl_pct:.1f}%, ma il trend di fondo è rialzista e siamo a sconto. Occasione per abbassare il prezzo medio."
