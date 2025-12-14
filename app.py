@@ -3,6 +3,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import date, datetime
 import pandas as pd
+import threading
+import time
 
 # IMPORTIAMO IL CERVELLO CONDIVISO (Assicurati che logic.py sia nella stessa cartella)
 from logic import DBManager, get_data_raw, evaluate_strategy_full, generate_portfolio_advice, AUTO_SCAN_TICKERS, POPULAR_ASSETS, validate_ticker
@@ -643,3 +645,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
