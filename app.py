@@ -7,6 +7,31 @@ import pandas as pd
 # IMPORTIAMO IL CERVELLO CONDIVISO (Assicurati che logic.py sia nella stessa cartella)
 from logic import DBManager, get_data_raw, evaluate_strategy_full, generate_portfolio_advice, AUTO_SCAN_TICKERS, POPULAR_ASSETS, validate_ticker
 
+from bot import run_scheduler, bot # Importiamo le funzioni dal file bot.py
+
+# --- AVVIO BOT IN BACKGROUND ---
+# Questo trucco avvia il bot in un thread separato senza bloccare il sito
+if 'bot_active' not in st.session_state:
+    st.session_state.bot_active = True
+    
+    # 1. Thread per lo scheduler (messaggio delle 08:00)
+    t_sched = threading.Thread(target=run_scheduler, daemon=True)
+    t_sched.start()
+    
+    # 2. Thread per ascoltare i comandi Telegram
+    def start_bot_polling():
+        try:
+            bot.infinity_polling()
+        except:
+            pass
+            
+    t_bot = threading.Thread(target=start_bot_polling, daemon=True)
+    t_bot.start()
+    print("🤖 Bot Telegram avviato in background!")
+
+
+
+
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="InvestAI Ultimate", layout="wide", page_icon="💎")
 
