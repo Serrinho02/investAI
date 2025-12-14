@@ -135,6 +135,19 @@ def main():
         # MENU MODIFICATO: Watchlist rimossa, Impostazioni aggiunta
         page = st.radio("Menu", ["📊 Analisi Mercato", "💼 Portafoglio", "💡 Consigli", "⚙️ Impostazioni"], label_visibility="collapsed")
         st.divider()
+
+        # --- DEBUG SEZIONE ---
+        st.divider()
+        st.caption("🔧 STATO DATABASE")
+        if db.db_url:
+            st.success("☁️ Mode: POSTGRES (Supabase)")
+            # Mostra parte dell'URL per capire dove punta (senza password)
+            safe_host = db.db_url.split("@")[-1] if "@" in db.db_url else "Url Errato"
+            st.code(f"Target: {safe_host}", language="text")
+        else:
+            st.error("🏠 Mode: SQLITE (Locale)")
+            st.warning("⚠️ I Secrets non vengono letti! I dati non vengono salvati su Supabase.")
+        
         if st.button("Logout"): st.session_state.user = None; st.rerun()
 
     # --- 1. DASHBOARD ANALISI MERCATO (Grafica All-in-One) ---
@@ -667,6 +680,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
