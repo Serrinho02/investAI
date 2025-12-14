@@ -94,14 +94,14 @@ def main():
             st.title("💎 InvestAI Ultimate")
             tab1, tab2 = st.tabs(["Accedi", "Registrati"])
             with tab1:
-                u = st.text_input("User", key="l_u")
-                p = st.text_input("Pass", type="password", key="l_p")
+                u = st.text_input("Username", key="l_u")
+                p = st.text_input("Password", type="password", key="l_p")
                 if st.button("Login", type="primary", use_container_width=True):
                     if db.login_user(u, p): st.session_state.user = u; st.rerun()
                     else: st.error("Errore credenziali")
             with tab2:
-                nu = st.text_input("Nuovo User", key="r_u")
-                np = st.text_input("Nuova Pass", type="password", key="r_p")
+                nu = st.text_input("Nuovo Username", key="r_u")
+                np = st.text_input("Nuova Password", type="password", key="r_p")
                 if st.button("Crea Account", use_container_width=True):
                     if db.register_user(nu, np): st.success("Creato! Accedi."); 
                     else: st.error("Utente esistente")
@@ -645,3 +645,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
