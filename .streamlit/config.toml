@@ -1,0 +1,9 @@
+[client]
+toolbarMode = "viewer"  # Nasconde la toolbar sviluppatore (rerun, settings)
+
+[theme]
+base = "dark"           # Forza il tema scuro (opzionale, ma professionale)
+primaryColor = "#FFD700" # Oro per i bottoni (opzionale)
+
+[browser]
+gatherUsageStats = false # Disabilita invio statistiche
