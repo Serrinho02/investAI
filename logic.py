@@ -33,8 +33,7 @@ AUTO_SCAN_TICKERS = [v for k, v in POPULAR_ASSETS.items() if v is not None]
 class DBManager:
     def __init__(self):
         # Cerca la variabile d'ambiente DATABASE_URL (impostata su Cloud)
-        #self.db_url = os.environ.get("DATABASE_URL")
-        self.db_url = "postgresql://postgres:8uIbkkLv2WiNtkxm@db.kxergoynyjvbnsrgkobn.supabase.co:5432/postgres"
+        self.db_url = os.environ.get("DATABASE_URL")
         self.conn = self.connect()
         self.create_tables()
 
@@ -443,4 +442,5 @@ def generate_portfolio_advice(df, avg_price, current_price):
             advice = f"Perdita importante ({pnl_pct:.1f}%) e trend negativo. La statistica suggerisce di tagliare le perdite."
             color = "#ffe6e6"
             
+
     return title, advice, color
