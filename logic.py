@@ -1,14 +1,10 @@
-import streamlit as st  # Necessario per leggere i Secrets
+import streamlit as st
+from st_supabase_connection import SupabaseConnection
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
-import sqlite3
 import hashlib
-from datetime import date
-import requests
 import os
-import psycopg2
-from urllib.parse import urlparse
 
 # --- CONFIGURAZIONE TELEGRAM ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -30,184 +26,150 @@ POPULAR_ASSETS = {
 
 AUTO_SCAN_TICKERS = [v for k, v in POPULAR_ASSETS.items() if v is not None]
 
-# --- DATABASE MANAGER (Cloud Compatible via Streamlit Secrets) ---
+# --- DATABASE MANAGER (Supabase API Version) ---
 class DBManager:
     def __init__(self):
-        self.db_url = None
-        
-        # 1. Tenta di leggere la connessione dai Secrets di Streamlit (Priorità Cloud)
-        if "SUPABASE_URL" in st.secrets:
-            self.db_url = st.secrets["SUPABASE_URL"]
-            
-            # Fix per compatibilità SQLAlchemy/Psycopg2 (alcuni provider usano postgres:// invece di postgresql://)
-            if self.db_url and self.db_url.startswith("postgres://"):
-                self.db_url = self.db_url.replace("postgres://", "postgresql://", 1)
-        
-        # 2. Fallback: Variabile d'ambiente (per Docker o uso locale avanzato)
-        elif "DATABASE_URL" in os.environ:
-            self.db_url = os.environ.get("DATABASE_URL")
-
-        # Avvio connessione
-        self.conn = self.connect()
-        
-        # Controllo errori critici su Cloud
-        if self.conn is None and self.db_url is not None:
-             st.error("❌ Errore critico: Impossibile connettersi al Database Cloud. Controlla i Secrets.")
-             st.stop()
-
-        self.create_tables()
-
-    def connect(self):
-        # Se abbiamo un URL (Cloud/Postgres)
-        if self.db_url:
-            try:
-                # sslmode='require' è fondamentale per Supabase/Cloud
-                return psycopg2.connect(self.db_url, sslmode='require')
-            except Exception as e:
-                print(f"Errore connessione DB Cloud: {e}")
-                return None
-        else:
-            # Se NON abbiamo un URL, usiamo SQLite (Locale)
-            print("⚠️ Nessun DATABASE_URL trovato. Uso SQLite locale (i dati non persisteranno su Streamlit Cloud).")
-            return sqlite3.connect("investai_v10.db", check_same_thread=False)
-
-    def get_cursor(self):
-        # Helper per ottenere il cursore (gestisce riconnessioni)
         try:
-            return self.conn.cursor()
-        except:
-            self.conn = self.connect()
-            return self.conn.cursor()
-
-    def create_tables(self):
-        c = self.get_cursor()
-        
-        # Sintassi diversa per SQLite e Postgres
-        if self.db_url:
-            # POSTGRESQL
-            c.execute('''CREATE TABLE IF NOT EXISTS users (
-                         username TEXT PRIMARY KEY, 
-                         password TEXT, 
-                         tg_chat_id TEXT)''')
-            
-            c.execute('''CREATE TABLE IF NOT EXISTS transactions (
-                         id SERIAL PRIMARY KEY, 
-                         username TEXT, 
-                         symbol TEXT, 
-                         quantity REAL, 
-                         price REAL, 
-                         date TEXT, 
-                         type TEXT, 
-                         fee REAL DEFAULT 0.0)''')
-        else:
-            # SQLITE
-            c.execute('''CREATE TABLE IF NOT EXISTS users (
-                         username TEXT PRIMARY KEY, 
-                         password TEXT, 
-                         tg_chat_id TEXT)''')
-            
-            c.execute('''CREATE TABLE IF NOT EXISTS transactions (
-                         id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                         username TEXT, 
-                         symbol TEXT, 
-                         quantity REAL, 
-                         price REAL, 
-                         date TEXT, 
-                         type TEXT, 
-                         fee REAL DEFAULT 0.0)''')
-            
-        self.conn.commit()
-
-    # --- QUERY HELPER (Gestisce la differenza ? vs %s) ---
-    def execute_query(self, query, params=()):
-        c = self.get_cursor()
-        try:
-            # Se siamo su Postgres, sostituiamo ? con %s
-            if self.db_url:
-                query = query.replace('?',('%s'))
-            
-            c.execute(query, params)
-            
-            if query.strip().upper().startswith("SELECT"):
-                return c.fetchall()
-            else:
-                self.conn.commit()
-                return True
+            # Inizializza la connessione usando i secrets [connections.supabase]
+            self.conn = st.connection("supabase", type=SupabaseConnection)
+            # Accesso diretto al client Supabase (per insert/update/delete)
+            self.client = self.conn.client 
         except Exception as e:
-            print(f"Errore query: {e}")
-            self.conn.rollback()
-            return False
-
-    def execute_fetchone(self, query, params=()):
-        c = self.get_cursor()
-        if self.db_url: query = query.replace('?',('%s'))
-        c.execute(query, params)
-        return c.fetchone()
+            st.error(f"❌ Errore connessione Supabase: {e}")
+            st.stop()
 
     # --- METODI UTENTE ---
     
     def register_user(self, u, p):
         h = hashlib.sha256(p.encode()).hexdigest()
-        return self.execute_query("INSERT INTO users (username, password) VALUES (?, ?)", (u, h))
+        try:
+            # API: Insert
+            res = self.client.table("users").insert({"username": u, "password": h}).execute()
+            # Se restituisce dati, l'inserimento è andato a buon fine
+            return len(res.data) > 0
+        except Exception as e:
+            print(f"Errore registrazione: {e}")
+            return False
 
     def login_user(self, u, p):
         h = hashlib.sha256(p.encode()).hexdigest()
-        res = self.execute_fetchone("SELECT * FROM users WHERE username=? AND password=?", (u, h))
-        return res is not None
+        try:
+            # API: Select con filtri (eq)
+            res = self.client.table("users").select("*").eq("username", u).eq("password", h).execute()
+            return len(res.data) > 0
+        except:
+            return False
 
     def save_chat_id(self, user, chat_id):
-        exists = self.execute_fetchone("SELECT username FROM users WHERE username=?", (user,))
-        if exists:
-            return self.execute_query("UPDATE users SET tg_chat_id=? WHERE username=?", (chat_id, user))
-        return False
+        try:
+            # API: Update
+            res = self.client.table("users").update({"tg_chat_id": str(chat_id)}).eq("username", user).execute()
+            return len(res.data) > 0
+        except:
+            return False
 
     def get_user_chat_id(self, user):
-        res = self.execute_fetchone("SELECT tg_chat_id FROM users WHERE username=?", (user,))
-        return res[0] if res else ""
+        try:
+            res = self.client.table("users").select("tg_chat_id").eq("username", user).execute()
+            if res.data and len(res.data) > 0:
+                return res.data[0].get("tg_chat_id", "")
+            return ""
+        except:
+            return ""
 
     def get_users_with_telegram(self):
-        return self.execute_query("SELECT username, tg_chat_id FROM users WHERE tg_chat_id IS NOT NULL AND tg_chat_id != ''")
+        try:
+            # API: Select con filtro 'neq' (not equal) a stringa vuota o null
+            res = self.client.table("users").select("username, tg_chat_id").neq("tg_chat_id", "").execute()
+            # Convertiamo il risultato (lista di dict) in lista di tuple per compatibilità col vecchio codice
+            return [(r['username'], r['tg_chat_id']) for r in res.data]
+        except:
+            return []
 
     def get_user_by_chat_id(self, chat_id):
-        """Trova l'username del sito partendo dal Chat ID di Telegram"""
-        res = self.execute_fetchone("SELECT username FROM users WHERE tg_chat_id=?", (str(chat_id),))
-        return res[0] if res else None
+        try:
+            res = self.client.table("users").select("username").eq("tg_chat_id", str(chat_id)).execute()
+            if res.data and len(res.data) > 0:
+                return res.data[0]['username']
+            return None
+        except:
+            return None
 
-    
     # --- METODI TRANSAZIONI ---
     
     def add_transaction(self, user, symbol, qty, price, date_str, type="BUY", fee=0.0):
-        return self.execute_query(
-            "INSERT INTO transactions (username, symbol, quantity, price, date, type, fee) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-            (user, symbol.upper(), qty, price, date_str, type, fee))
+        data = {
+            "username": user,
+            "symbol": symbol.upper(),
+            "quantity": float(qty),
+            "price": float(price),
+            "date": date_str,
+            "type": type,
+            "fee": float(fee)
+        }
+        try:
+            self.client.table("transactions").insert(data).execute()
+            return True
+        except Exception as e:
+            print(f"Errore add tx: {e}")
+            return False
 
     def update_transaction(self, t_id, symbol, qty, price, date_str, type, fee=0.0):
-        return self.execute_query(
-            "UPDATE transactions SET symbol=?, quantity=?, price=?, date=?, type=?, fee=? WHERE id=?", 
-            (symbol.upper(), qty, price, date_str, type, fee, t_id))
+        data = {
+            "symbol": symbol.upper(),
+            "quantity": float(qty),
+            "price": float(price),
+            "date": date_str,
+            "type": type,
+            "fee": float(fee)
+        }
+        try:
+            self.client.table("transactions").update(data).eq("id", t_id).execute()
+            return True
+        except:
+            return False
 
     def delete_transaction(self, t_id):
-        return self.execute_query("DELETE FROM transactions WHERE id=?", (t_id,))
+        try:
+            self.client.table("transactions").delete().eq("id", t_id).execute()
+            return True
+        except:
+            return False
 
     def get_all_transactions(self, user):
-        return self.execute_query("SELECT id, symbol, quantity, price, date, type, fee FROM transactions WHERE username=? ORDER BY date DESC", (user,))
+        try:
+            # API: Select ordinata per data discendente
+            res = self.client.table("transactions").select("*").eq("username", user).order("date", desc=True).execute()
+            return res.data # Ritorna una lista di DIZIONARI
+        except:
+            return []
 
     def get_transaction_by_id(self, t_id):
-        return self.execute_fetchone("SELECT id, symbol, quantity, price, date, type, fee FROM transactions WHERE id=?", (t_id,))
+        try:
+            res = self.client.table("transactions").select("*").eq("id", t_id).execute()
+            if res.data:
+                r = res.data[0]
+                # Per compatibilità con app.py che si aspetta una TUPLA per l'edit, convertiamo:
+                # Ordine atteso: id, symbol, quantity, price, date, type, fee
+                return (r['id'], r['symbol'], r['quantity'], r['price'], r['date'], r['type'], r.get('fee', 0.0))
+            return None
+        except:
+            return None
 
     def get_portfolio_summary(self, user):
+        # Ottieni le transazioni (lista di dizionari)
         rows = self.get_all_transactions(user)
         portfolio = {}
         history = [] 
         
         for row in rows:
-            t_id, sym, qty, price, dt, type_tx = row[0], row[1], row[2], row[3], row[4], row[5]
-            # Gestione fee su Postgres
-            fee = float(row[6]) if len(row) > 6 and row[6] is not None else 0.0
-            
-            # Conversione float
-            qty = float(qty)
-            price = float(price)
+            # Adattamento da Dict (API) a Variabili
+            sym = row['symbol']
+            qty = float(row['quantity'])
+            price = float(row['price'])
+            dt = row['date']
+            type_tx = row['type']
+            fee = float(row.get('fee', 0.0) or 0.0)
 
             if sym not in portfolio: portfolio[sym] = {"qty": 0.0, "total_cost": 0.0, "avg_price": 0.0}
             
@@ -228,7 +190,7 @@ class DBManager:
 
         return {k: v for k, v in portfolio.items() if v["qty"] > 0.0001}, history
 
-# --- HELPER FUNCTIONS ---
+# --- HELPER FUNCTIONS (Invariate) ---
 def validate_ticker(ticker):
     if not ticker: return False
     try:
@@ -298,7 +260,7 @@ def process_df(df, data, t):
         print(f"Errore calcolo indicatori per {t}: {e}")
         pass
 
-# --- STRATEGIA DI SCANSIONE ---
+# --- STRATEGIA DI SCANSIONE (Invariata) ---
 def evaluate_strategy_full(df):
     required_cols = ['SMA_200', 'MACD', 'MACD_SIGNAL', 'BBL', 'BBU', 'RSI', 'ATR']
     for col in required_cols:
@@ -370,7 +332,7 @@ def evaluate_strategy_full(df):
     except Exception as e:
         return "ERR", "Errore", "#eee", 0, 0, 0, str(e), 0, 0, 0, 0
 
-# --- STRATEGIA DI PORTAFOGLIO ---
+# --- STRATEGIA DI PORTAFOGLIO (Invariata) ---
 def generate_portfolio_advice(df, avg_price, current_price):
     if 'RSI' not in df.columns or 'SMA_200' not in df.columns or 'ATR' not in df.columns:
         return "✋ DATI MANCANTI", "Impossibile calcolare strategia.", "#eee"
@@ -435,5 +397,3 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
-
-
