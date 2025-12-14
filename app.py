@@ -38,18 +38,24 @@ if 'bot_active' not in st.session_state:
 st.set_page_config(page_title="InvestAI Ultimate", layout="wide", page_icon="💎")
 
 # --- NASCONDI MENU E FOOTER ---
+# --- CSS PER NASCONDERE TUTTO (Menu, Footer, Decorazioni) ---
 st.markdown("""
     <style>
-        /* Nasconde il menu hamburger (le tre lineette in alto a destra) */
+        /* Nasconde il menu hamburger e il pulsante Deploy */
         #MainMenu {visibility: hidden;}
-        /* Nasconde il pulsante "Deploy" o "Manage" */
         .stDeployButton {display: none;}
-        /* Nasconde la barra colorata in alto (Header) */
-        header {visibility: hidden;}
-        /* Nasconde il footer "Made with Streamlit" */
+        /* Nasconde il footer testuale in basso */
         footer {visibility: hidden;}
-        /* Opzionale: Nasconde la modalità scura/chiara se vuoi bloccarla */
-        /* [data-testid="stHeader"] {display: none;} */
+        /* Nasconde la decorazione con il logo Streamlit (barchetta rossa) */
+        [data-testid="stDecoration"] {
+            display: none;
+        }
+        /* Se c'è anche un'altra barra di stato o logo in basso, proviamo a nasconderla così */
+        .stStatusWidget {
+            display: none;
+        }
+        /* Nasconde la barra superiore (header) */
+        header {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -661,5 +667,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
