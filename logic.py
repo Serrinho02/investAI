@@ -7,7 +7,7 @@ import hashlib
 import os
 
 # --- CONFIGURAZIONE TELEGRAM ---
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 
 # --- ASSET LIST COMPLETA ---
 POPULAR_ASSETS = {
@@ -26,14 +26,16 @@ POPULAR_ASSETS = {
 
 AUTO_SCAN_TICKERS = [v for k, v in POPULAR_ASSETS.items() if v is not None]
 
-# --- DATABASE MANAGER (Supabase API Version) ---
+# --- DATABASE MANAGER (Supabase API Version - Compatibility Mode) ---
 class DBManager:
     def __init__(self):
+        # Placeholder per evitare crash del debug in app.py
         self.db_url = "SUPABASE_API_CONNECTION_ACTIVE"
+        
         try:
             # Inizializza la connessione usando i secrets [connections.supabase]
             self.conn = st.connection("supabase", type=SupabaseConnection)
-            # Accesso diretto al client Supabase (per insert/update/delete)
+            # Accesso diretto al client Supabase
             self.client = self.conn.client 
         except Exception as e:
             st.error(f"❌ Errore connessione Supabase: {e}")
@@ -44,30 +46,22 @@ class DBManager:
     def register_user(self, u, p):
         h = hashlib.sha256(p.encode()).hexdigest()
         try:
-            # API: Insert
             res = self.client.table("users").insert({"username": u, "password": h}).execute()
-            # Se restituisce dati, l'inserimento è andato a buon fine
             return len(res.data) > 0
-        except Exception as e:
-            print(f"Errore registrazione: {e}")
-            return False
+        except: return False
 
     def login_user(self, u, p):
         h = hashlib.sha256(p.encode()).hexdigest()
         try:
-            # API: Select con filtri (eq)
             res = self.client.table("users").select("*").eq("username", u).eq("password", h).execute()
             return len(res.data) > 0
-        except:
-            return False
+        except: return False
 
     def save_chat_id(self, user, chat_id):
         try:
-            # API: Update
             res = self.client.table("users").update({"tg_chat_id": str(chat_id)}).eq("username", user).execute()
             return len(res.data) > 0
-        except:
-            return False
+        except: return False
 
     def get_user_chat_id(self, user):
         try:
@@ -75,17 +69,13 @@ class DBManager:
             if res.data and len(res.data) > 0:
                 return res.data[0].get("tg_chat_id", "")
             return ""
-        except:
-            return ""
+        except: return ""
 
     def get_users_with_telegram(self):
         try:
-            # API: Select con filtro 'neq' (not equal) a stringa vuota o null
             res = self.client.table("users").select("username, tg_chat_id").neq("tg_chat_id", "").execute()
-            # Convertiamo il risultato (lista di dict) in lista di tuple per compatibilità col vecchio codice
             return [(r['username'], r['tg_chat_id']) for r in res.data]
-        except:
-            return []
+        except: return []
 
     def get_user_by_chat_id(self, chat_id):
         try:
@@ -93,8 +83,7 @@ class DBManager:
             if res.data and len(res.data) > 0:
                 return res.data[0]['username']
             return None
-        except:
-            return None
+        except: return None
 
     # --- METODI TRANSAZIONI ---
     
@@ -111,9 +100,7 @@ class DBManager:
         try:
             self.client.table("transactions").insert(data).execute()
             return True
-        except Exception as e:
-            print(f"Errore add tx: {e}")
-            return False
+        except: return False
 
     def update_transaction(self, t_id, symbol, qty, price, date_str, type, fee=0.0):
         data = {
@@ -127,22 +114,38 @@ class DBManager:
         try:
             self.client.table("transactions").update(data).eq("id", t_id).execute()
             return True
-        except:
-            return False
+        except: return False
 
     def delete_transaction(self, t_id):
         try:
             self.client.table("transactions").delete().eq("id", t_id).execute()
             return True
-        except:
-            return False
+        except: return False
 
     def get_all_transactions(self, user):
         try:
-            # API: Select ordinata per data discendente
+            # API: Ottiene i dati come dizionario
             res = self.client.table("transactions").select("*").eq("username", user).order("date", desc=True).execute()
-            return res.data # Ritorna una lista di DIZIONARI
-        except:
+            
+            # --- FIX FONDAMENTALE PER APP.PY ---
+            # Convertiamo i Dizionari in Tuple nell'ordine esatto che app.py si aspetta:
+            # (id, symbol, quantity, price, date, type, fee)
+            # Indici: 0=id, 1=sym, 2=qty, 3=price, 4=date, 5=type, 6=fee
+            
+            clean_rows = []
+            for r in res.data:
+                clean_rows.append((
+                    r['id'], 
+                    r['symbol'], 
+                    float(r['quantity']), 
+                    float(r['price']), 
+                    r['date'], 
+                    r['type'], 
+                    float(r.get('fee', 0.0))
+                ))
+            return clean_rows
+        except Exception as e:
+            print(f"Errore fetch tx: {e}")
             return []
 
     def get_transaction_by_id(self, t_id):
@@ -150,27 +153,25 @@ class DBManager:
             res = self.client.table("transactions").select("*").eq("id", t_id).execute()
             if res.data:
                 r = res.data[0]
-                # Per compatibilità con app.py che si aspetta una TUPLA per l'edit, convertiamo:
-                # Ordine atteso: id, symbol, quantity, price, date, type, fee
+                # Anche qui, restituiamo una Tupla per il form di modifica
                 return (r['id'], r['symbol'], r['quantity'], r['price'], r['date'], r['type'], r.get('fee', 0.0))
             return None
-        except:
-            return None
+        except: return None
 
     def get_portfolio_summary(self, user):
-        # Ottieni le transazioni (lista di dizionari)
+        # Ora get_all_transactions restituisce TUPLE, quindi usiamo gli indici numerici
         rows = self.get_all_transactions(user)
         portfolio = {}
         history = [] 
         
         for row in rows:
-            # Adattamento da Dict (API) a Variabili
-            sym = row['symbol']
-            qty = float(row['quantity'])
-            price = float(row['price'])
-            dt = row['date']
-            type_tx = row['type']
-            fee = float(row.get('fee', 0.0) or 0.0)
+            # Usa INDICI NUMERICI (Tupla)
+            sym = row[1]
+            qty = float(row[2])
+            price = float(row[3])
+            dt = row[4]
+            type_tx = row[5]
+            fee = float(row[6])
 
             if sym not in portfolio: portfolio[sym] = {"qty": 0.0, "total_cost": 0.0, "avg_price": 0.0}
             
@@ -191,7 +192,7 @@ class DBManager:
 
         return {k: v for k, v in portfolio.items() if v["qty"] > 0.0001}, history
 
-# --- HELPER FUNCTIONS (Invariate) ---
+# --- HELPER FUNCTIONS ---
 def validate_ticker(ticker):
     if not ticker: return False
     try:
@@ -258,10 +259,9 @@ def process_df(df, data, t):
             data[t] = df_clean
             
     except Exception as e:
-        print(f"Errore calcolo indicatori per {t}: {e}")
         pass
 
-# --- STRATEGIA DI SCANSIONE (Invariata) ---
+# --- STRATEGIA DI SCANSIONE ---
 def evaluate_strategy_full(df):
     required_cols = ['SMA_200', 'MACD', 'MACD_SIGNAL', 'BBL', 'BBU', 'RSI', 'ATR']
     for col in required_cols:
@@ -333,7 +333,7 @@ def evaluate_strategy_full(df):
     except Exception as e:
         return "ERR", "Errore", "#eee", 0, 0, 0, str(e), 0, 0, 0, 0
 
-# --- STRATEGIA DI PORTAFOGLIO (Invariata) ---
+# --- STRATEGIA DI PORTAFOGLIO ---
 def generate_portfolio_advice(df, avg_price, current_price):
     if 'RSI' not in df.columns or 'SMA_200' not in df.columns or 'ATR' not in df.columns:
         return "✋ DATI MANCANTI", "Impossibile calcolare strategia.", "#eee"
@@ -398,4 +398,3 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
-
