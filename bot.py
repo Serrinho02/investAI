@@ -4,7 +4,6 @@ import time
 import threading
 from datetime import datetime
 import pandas as pd
-import pytz # Potrebbe servire, ma usiamo datetime standard per semplicità
 
 # Importiamo il Token e le funzioni dal "Cervello" (logic.py)
 from logic import (
@@ -30,6 +29,7 @@ def get_verified_user(message):
     Ritorna: (username_sito, chat_id) oppure (None, chat_id)
     """
     chat_id = str(message.chat.id)
+    # Cerca nel DB chi ha questo chat_id
     website_username = db.get_user_by_chat_id(chat_id)
     return website_username, chat_id
 
@@ -45,19 +45,43 @@ def get_market_data_for_user(username):
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
+    # 1. Recupera l'utente VERO dal DB usando l'ID
     website_user, chat_id = get_verified_user(message)
     
     if website_user:
-        bot.reply_to(message, f"✅ **Riconosciuto!**\n\nCiao **{website_user}**, sei correttamente collegato al database.\n\nPuoi usare:\n/portafoglio - Vedi i tuoi asset\n/mercato - Vedi occasioni generali", parse_mode="Markdown")
+        # CASO 1: Utente già configurato sul sito
+        msg = (f"✅ **Benvenuto {website_user}!**\n\n"
+               f"Sei connesso correttamente al sistema InvestAI.\n"
+               f"📅 **Schedulazione Attiva:** Riceverai il report giornaliero alle **08:00** (UTC).\n\n"
+               f"**Comandi disponibili:**\n"
+               f"/portafoglio - Analisi istantanea dei tuoi asset\n"
+               f"/mercato - Scansione nuove opportunità\n"
+               f"/stop - Disattiva le notifiche automatiche")
+        bot.reply_to(message, msg, parse_mode="Markdown")
     else:
-        bot.reply_to(message, f"⛔ **Utente non riconosciuto**\n\nIl tuo Telegram Chat ID è: `{chat_id}`\n\n1. Copia questo numero.\n2. Vai sul sito InvestAI > Impostazioni.\n3. Incolla il numero e salva.\n4. Torna qui e scrivi /start.", parse_mode="Markdown")
+        # CASO 2: Utente non ancora configurato
+        bot.reply_to(message, f"⛔ **Utente non riconosciuto**\n\nIl tuo Telegram Chat ID è: `{chat_id}`\n\n1. Copia questo numero.\n2. Vai sul sito InvestAI > Impostazioni > Notifiche.\n3. Incolla il numero e salva.\n4. Torna qui e scrivi /start.", parse_mode="Markdown")
+
+@bot.message_handler(commands=['stop'])
+def stop_notifications(message):
+    website_user, chat_id = get_verified_user(message)
+    
+    if website_user:
+        # Rimuoviamo l'ID salvando una stringa vuota ""
+        # La logica del DB (get_users_with_telegram) ignora chi ha ID vuoto.
+        if db.save_chat_id(website_user, ""):
+            bot.reply_to(message, "🔕 **Notifiche Disattivate**\n\nNon riceverai più il report giornaliero.\nPer riattivarle, vai sul sito e salva di nuovo il tuo Chat ID, oppure digita /start se non l'hai cambiato.", parse_mode="Markdown")
+        else:
+            bot.reply_to(message, "Errore durante la disattivazione. Riprova.")
+    else:
+        bot.reply_to(message, "Non risulti iscritto a nessuna notifica.")
 
 @bot.message_handler(commands=['portafoglio'])
 def send_portfolio(message):
     username, chat_id = get_verified_user(message)
     
     if not username:
-        bot.send_message(chat_id, f"⚠️ Non sei configurato. Il tuo ID è `{chat_id}`. Inseriscilo nelle impostazioni del sito.", parse_mode="Markdown")
+        bot.send_message(chat_id, f"⚠️ Non sei configurato. Vai sul sito per collegare l'account.", parse_mode="Markdown")
         return
 
     bot.send_message(chat_id, f"⏳ Analisi portafoglio di **{username}** in corso...", parse_mode="Markdown")
@@ -74,7 +98,6 @@ def send_portfolio(message):
             cur_price = market_data[t]['Close'].iloc[-1]
             
             tit, adv, _ = generate_portfolio_advice(market_data[t], data['avg_price'], cur_price)
-            # FIX: Estraiamo 11 valori come da nuova logic.py
             tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(market_data[t])
             
             pnl = ((cur_price - data['avg_price']) / data['avg_price']) * 100
@@ -93,7 +116,7 @@ def send_portfolio(message):
         try:
             bot.send_message(chat_id, full_msg, parse_mode="HTML")
         except:
-            bot.send_message(chat_id, "Errore invio dati (messaggio troppo lungo o formato errato).")
+            bot.send_message(chat_id, "Errore invio dati.")
     else:
         bot.send_message(chat_id, "Impossibile scaricare dati aggiornati.")
 
@@ -108,7 +131,6 @@ def send_market_scan(message):
     
     for t in AUTO_SCAN_TICKERS:
         if t in market_data:
-            # FIX: 11 Valori
             tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(market_data[t])
             
             if "ORO" in act or "ACQUISTA" in act:
@@ -139,7 +161,6 @@ def send_daily_report():
             
         print(f"-> Trovati {len(users)} utenti. Inizio elaborazione...")
 
-        # Scarica dati unici
         all_tickers = set(AUTO_SCAN_TICKERS)
         user_map = {} 
         
@@ -170,7 +191,6 @@ def send_daily_report():
             # 2. Notifiche Mercato (Solo ORO)
             for t in AUTO_SCAN_TICKERS:
                 if t in market_data and (not pf or t not in pf):
-                    # FIX: 11 Valori
                     _, act, _, _, _, _, _, _, pot, _, _ = evaluate_strategy_full(market_data[t])
                     if "ORO" in act:
                         messages.append(f"💎 <b>{t} - GOLDEN!</b> (+{pot:.1f}%)")
