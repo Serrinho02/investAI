@@ -542,7 +542,6 @@ def main():
                                     </div>
                                     <span style="color:{'green' if dat['pnl_pct']>=0 else 'red'}; font-weight:bold;">{dat['pnl_pct']:.1f}%</span>
                                 </div>
-                                
                                 <h3 style="color:#222; margin:5px 0;">{tit}
                                     <span style="float: right; background-color: #388e3c; color: white; padding: 4px 8px; border-radius: 5px; font-size: 1.1rem;">
                                         🎯 {conf}/100
@@ -555,7 +554,6 @@ def main():
                                     <span>Tot: <b>€{val_attuale_asset:,.0f}</b></span>
                                 </div>
                                 <div style="font-size: 0.8rem; text-align: right; margin-bottom: 10px;">Allocazione: <b>{percentuale_allocazione:.1f}%</b></div>
-                                
                                 <div style="padding: 8px; background-color: rgba(255,255,255,0.8); border-radius: 6px; border: 1px dashed #666; margin-bottom: 8px;">
                                     <div style="font-size: 0.7rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Probabilità Storica (Buy Signal)</div>
                                     <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
@@ -565,7 +563,6 @@ def main():
                                     </div>
                                     <div style="text-align: center; font-size: 0.7rem; color: #777;">(Win Rate % / PnL Medio %)</div>
                                 </div>
-                        
                                 <div style="padding: 8px; background-color: rgba(255,255,255,0.6); border-radius: 6px; border: 1px dashed #666;">
                                     <div style="font-size: 0.7rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Scenari Tecnici</div>
                                     <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
@@ -998,6 +995,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
