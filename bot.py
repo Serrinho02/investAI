@@ -26,10 +26,11 @@ print("🤖 InvestAI Bot inizializzato (Attendere avvio thread in app.py)...")
 def get_verified_user(message):
     """
     Verifica se chi scrive ha configurato il Chat ID sul sito.
-    Ritorna: (username_sito, chat_id) oppure (None, chat_id)
+    Ritorna: (username_sito, chat_id)
+    Funziona anche se l'utente è in stato STOP_.
     """
     chat_id = str(message.chat.id)
-    # Cerca nel DB chi ha questo chat_id
+    # Cerca nel DB chi ha questo chat_id (anche se stoppato)
     website_username = db.get_user_by_chat_id(chat_id)
     return website_username, chat_id
 
@@ -45,36 +46,35 @@ def get_market_data_for_user(username):
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    # 1. Recupera l'utente VERO dal DB usando l'ID
     website_user, chat_id = get_verified_user(message)
     
     if website_user:
-        # CASO 1: Utente già configurato sul sito
+        # Se l'utente esiste (anche se stoppato), lo RIATTIVIAMO
+        # Riscriviamo l'ID pulito, rimuovendo eventuali STOP_
+        db.save_chat_id(website_user, chat_id)
+        
         msg = (f"✅ **Benvenuto {website_user}!**\n\n"
-               f"Sei connesso correttamente al sistema InvestAI.\n"
-               f"📅 **Schedulazione Attiva:** Riceverai il report giornaliero alle **08:00** (UTC).\n\n"
-               f"**Comandi disponibili:**\n"
-               f"/portafoglio - Analisi istantanea dei tuoi asset\n"
+               f"Sei connesso e le **notifiche automatiche sono ATTIVE** (08:00 UTC).\n\n"
+               f"**Comandi:**\n"
+               f"/portafoglio - Analisi istantanea\n"
                f"/mercato - Scansione nuove opportunità\n"
-               f"/stop - Disattiva le notifiche automatiche")
+               f"/stop - Disattiva SOLO il report automatico")
         bot.reply_to(message, msg, parse_mode="Markdown")
     else:
-        # CASO 2: Utente non ancora configurato
-        bot.reply_to(message, f"⛔ **Utente non riconosciuto**\n\nIl tuo Telegram Chat ID è: `{chat_id}`\n\n1. Copia questo numero.\n2. Vai sul sito InvestAI > Impostazioni > Notifiche.\n3. Incolla il numero e salva.\n4. Torna qui e scrivi /start.", parse_mode="Markdown")
+        bot.reply_to(message, f"⛔ **Utente non riconosciuto**\n\nChat ID: `{chat_id}`\n\nInseriscilo nelle impostazioni del sito per collegarti.", parse_mode="Markdown")
 
 @bot.message_handler(commands=['stop'])
 def stop_notifications(message):
     website_user, chat_id = get_verified_user(message)
     
     if website_user:
-        # Rimuoviamo l'ID salvando una stringa vuota ""
-        # La logica del DB (get_users_with_telegram) ignora chi ha ID vuoto.
-        if db.save_chat_id(website_user, ""):
-            bot.reply_to(message, "🔕 **Notifiche Disattivate**\n\nNon riceverai più il report giornaliero.\nPer riattivarle, vai sul sito e salva di nuovo il tuo Chat ID, oppure digita /start se non l'hai cambiato.", parse_mode="Markdown")
+        # Usiamo la nuova funzione per mettere STOP_ davanti all'ID
+        if db.disable_notifications(website_user, chat_id):
+            bot.reply_to(message, "🔕 **Report giornaliero DISATTIVATO.**\n\nPuoi continuare a usare /portafoglio e /mercato manualmente.\nDigita /start per riattivare le notifiche automatiche.", parse_mode="Markdown")
         else:
-            bot.reply_to(message, "Errore durante la disattivazione. Riprova.")
+            bot.reply_to(message, "Errore durante la disattivazione.")
     else:
-        bot.reply_to(message, "Non risulti iscritto a nessuna notifica.")
+        bot.reply_to(message, "Non sei registrato, quindi non hai notifiche attive.")
 
 @bot.message_handler(commands=['portafoglio'])
 def send_portfolio(message):
@@ -154,13 +154,16 @@ def send_daily_report():
     print(f"--- ⏰ ESECUZIONE Report Giornaliero: {datetime.now()} ---")
     
     try:
+        # Questa funzione ora esclude automaticamente chi ha STOP_ nell'ID
         users = db.get_users_with_telegram()
+        
         if not users:
-            print("-> Nessun utente telegram trovato.")
+            print("-> Nessun utente telegram attivo (o tutti stoppati).")
             return
             
-        print(f"-> Trovati {len(users)} utenti. Inizio elaborazione...")
+        print(f"-> Trovati {len(users)} utenti attivi. Inizio elaborazione...")
 
+        # Scarica dati unici
         all_tickers = set(AUTO_SCAN_TICKERS)
         user_map = {} 
         
@@ -211,12 +214,8 @@ def send_daily_report():
 # --- SCHEDULER ---
 
 def run_scheduler():
-    # Nota: L'orario è quello del server (UTC). 
-    # 08:00 UTC = 09:00 Italia (Inverno) / 10:00 Italia (Estate)
     schedule.every().day.at("08:00").do(send_daily_report)
-    
     print(f"🕒 Scheduler Attivo. Orario Server attuale: {datetime.now().strftime('%H:%M')}")
-    print("-> Il report partirà alle 08:00 (Server Time).")
     
     while True:
         try:
