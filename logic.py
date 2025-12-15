@@ -69,9 +69,21 @@ class DBManager:
     
     def save_chat_id(self, user, chat_id):
         try:
+            # Salva l'ID pulito (rimuove eventuali STOP_ se presenti nel DB per errore)
             res = self.client.table("users").update({"tg_chat_id": str(chat_id)}).eq("username", user).execute()
             return len(res.data) > 0
-        except: return False
+        except Exception as e:
+            print(f"❌ ERRORE save_chat_id: {e}")
+            return False
+
+    def disable_notifications(self, user, chat_id):
+        try:
+            stop_id = f"STOP_{chat_id}"
+            res = self.client.table("users").update({"tg_chat_id": stop_id}).eq("username", user).execute()
+            return len(res.data) > 0
+        except Exception as e:
+            print(f"❌ ERRORE disable_notifications: {e}")
+            return False  
 
     def get_user_chat_id(self, user):
         try:
@@ -446,6 +458,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
