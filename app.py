@@ -673,14 +673,16 @@ def main():
             # 2. ANALISI NUOVE OPPORTUNITÀ (MERCATO)
             for t in AUTO_SCAN_TICKERS:
                 if t not in owned_tickers and t in market_data:
-                    _, act, col, pr, rsi, dd, res, tgt, pot, r_pr, r_pot = evaluate_strategy_full(market_data[t])
+                    _, act, col, pr, rsi, dd, res, tgt, pot, r_pr, r_pot, w30, p30, w60, p60, w90, p90 = evaluate_strategy_full(market_data[t])
                     
                     if "ACQUISTA" in act or "ORO" in act:
                         actions_new_entry.append({
                             "ticker": t, "title": act, "desc": res, 
                             "color": col, "price": pr, "rsi": rsi,
                             "target": tgt, "potential": pot,
-                            "risk": r_pr, "risk_pot": r_pot
+                            "risk": r_pr, "risk_pot": r_pot,
+                            # AGGIUNTA DEI DATI DI BACKTESTING
+                            "w30": w30, "p30": p30, "w60": w60, "p60": p60, "w90": w90, "p90": p90
                         })
 
             # --- VISUALIZZAZIONE ---
@@ -840,6 +842,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
