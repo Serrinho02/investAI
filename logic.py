@@ -282,13 +282,16 @@ class DBManager:
 
 # --- HELPER HASHING ---
 def hash_password(password: str) -> str:
-    """Genera l'hash della password usando il contesto bcrypt."""
-    return pwd_context.hash(password)
+    """Genera l'hash della password usando il contesto bcrypt, troncando l'input a 72 caratteri."""
+    # MODIFICATO: Tronca la password a 72 caratteri (limite di bcrypt)
+    safe_password = password[:72] 
+    return pwd_context.hash(safe_password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verifica la password in chiaro contro l'hash memorizzato."""
-    # Gestisce automaticamente il salt e il fattore di lavoro
-    return pwd_context.verify(plain_password, hashed_password)
+    # Anche qui, tronca la password in chiaro prima della verifica, per garantire coerenza
+    safe_plain_password = plain_password[:72] # AGGIUNTO
+    return pwd_context.verify(safe_plain_password, hashed_password) # MODIFICATO
 
 # --- HELPER FUNCTIONS ---
 def validate_ticker(ticker):
@@ -573,6 +576,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
