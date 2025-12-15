@@ -98,7 +98,8 @@ def send_portfolio(message):
             cur_price = market_data[t]['Close'].iloc[-1]
             
             tit, adv, _ = generate_portfolio_advice(market_data[t], data['avg_price'], cur_price)
-            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(market_data[t])
+            # Riceve 17 valori, ignora i 6 di backtest (w30, p30, w60, p60, w90, p90)
+            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, _, _, _, _, _, _ = evaluate_strategy_full(market_data[t])
             
             pnl = ((cur_price - data['avg_price']) / data['avg_price']) * 100
             emoji = "🟢" if pnl > 0 else "🔴"
@@ -131,7 +132,7 @@ def send_market_scan(message):
     
     for t in AUTO_SCAN_TICKERS:
         if t in market_data:
-            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(market_data[t])
+            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, _, _, _, _, _, _ = evaluate_strategy_full(market_data[t])
             
             if "ORO" in act or "ACQUISTA" in act:
                 icon = "💎" if "ORO" in act else "🟢"
@@ -194,7 +195,7 @@ def send_daily_report():
             # 2. Notifiche Mercato (Solo ORO)
             for t in AUTO_SCAN_TICKERS:
                 if t in market_data and (not pf or t not in pf):
-                    _, act, _, _, _, _, _, _, pot, _, _ = evaluate_strategy_full(market_data[t])
+                    _, act, _, _, _, _, _, _, pot, _, _, _, _, _, _, _, _ = evaluate_strategy_full(market_data[t])
                     if "ORO" in act:
                         messages.append(f"💎 <b>{t} - GOLDEN!</b> (+{pot:.1f}%)")
             
