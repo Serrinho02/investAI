@@ -757,33 +757,58 @@ def main():
                 st.info("Nessun dato disponibile per generare consigli.")
 
     # --- 4. IMPOSTAZIONI ---
+# --- 4. IMPOSTAZIONI ---
     elif page == "⚙️ Impostazioni":
-        st.title("Impostazioni Notifiche")
+        st.title("Impostazioni")
         
-        st.info("Per ricevere consigli automatici ogni mattina su Telegram, devi inserire il tuo Chat ID.")
+        tab_tg, tab_sec = st.tabs(["🔔 Notifiche", "🔒 Sicurezza"])
         
-        with st.container(border=True):
-            st.subheader("Configurazione Telegram")
-            
-            current_id = db.get_user_chat_id(user)
-            chat_id_input = st.text_input("Inserisci il tuo Telegram Chat ID", value=current_id, help="Cerca @userinfobot su Telegram per scoprire il tuo ID")
-            
-            if st.button("💾 Salva ID", type="primary"):
-                if chat_id_input:
-                    if db.save_chat_id(user, chat_id_input): st.success("Chat ID salvato con successo! Il bot ti invierà aggiornamenti.");
-                    else: st.error("Errore nel salvataggio.")
-                else: st.warning("Inserisci un ID valido.")
-            
-            st.markdown("""
-            **Come ottenere il tuo Chat ID:**
-            1. Apri Telegram.
-            2. Cerca **@userinfobot** e avvialo.
-            3. Copia il numero sotto la voce 'Id'.
-            4. **IMPORTANTE:** Cerca il nostro bot **InvestAI Bot** e premi AVVIA, altrimenti non potrà scriverti!
-            """)
+        # --- TAB 1: TELEGRAM ---
+        with tab_tg:
+            st.info("Per ricevere consigli automatici ogni mattina su Telegram, devi inserire il tuo Chat ID.")
+            with st.container(border=True):
+                st.subheader("Configurazione Telegram")
+                current_id = db.get_user_chat_id(user)
+                chat_id_input = st.text_input("Inserisci il tuo Telegram Chat ID", value=current_id, help="Cerca @userinfobot su Telegram per scoprire il tuo ID")
+                if st.button("💾 Salva ID Telegram", type="primary"):
+                    if chat_id_input:
+                        if db.save_chat_id(user, chat_id_input): st.success("Chat ID salvato con successo! Il bot ti invierà aggiornamenti.");
+                        else: st.error("Errore nel salvataggio.")
+                    else: st.warning("Inserisci un ID valido.")
+                st.markdown("""
+                **Come ottenere il tuo Chat ID:**
+                1. Apri Telegram.
+                2. Cerca **@userinfobot** e avvialo.
+                3. Copia il numero sotto la voce 'Id'.
+                4. **IMPORTANTE:** Cerca il nostro bot **InvestAI Bot** e premi AVVIA, altrimenti non potrà scriverti!
+                """)
+
+        # --- TAB 2: SICUREZZA (CAMBIO PASSWORD) ---
+        with tab_sec:
+            st.warning("Qui puoi modificare la password di accesso a questo sito.")
+            with st.container(border=True):
+                st.subheader("Cambio Password")
+                with st.form("change_pass_form"):
+                    p1 = st.text_input("Nuova Password", type="password")
+                    p2 = st.text_input("Conferma Password", type="password")
+                    if st.form_submit_button("Aggiorna Password"):
+                        if p1 and p2:
+                            if p1 == p2:
+                                if db.change_password(user, p1):
+                                    st.success("Password aggiornata con successo! Effettua il login.")
+                                    time.sleep(2)
+                                    st.session_state.user = None
+                                    st.rerun()
+                                else:
+                                    st.error("Errore durante l'aggiornamento. Riprova.")
+                            else:
+                                st.error("Le password non coincidono.")
+                        else:
+                            st.warning("Inserisci la nuova password.")
 
 if __name__ == "__main__":
     main()
+
 
 
 
