@@ -160,13 +160,11 @@ def main():
         
         # --- 3. STATO SISTEMA (MINIMAL) ---
         with st.container():
-            c_text = st.columns([1, 4])
-            with c_text:
-                if db.db_url == "SUPABASE_API_CONNECTION_ACTIVE":
-                    st.markdown("☁️**Database:** <span style='color:green;'>Connesso</span>", unsafe_allow_html=True)
-                    st.caption("Supabase Cloud API")
-                else:
-                    st.markdown("**Database:** <span style='color:red;'>Errore</span>", unsafe_allow_html=True)
+            if db.db_url == "SUPABASE_API_CONNECTION_ACTIVE":
+                st.markdown("☁️**Database:** <span style='color:green;'>Connesso</span>", unsafe_allow_html=True)
+                st.caption("Supabase Cloud API")
+            else:
+                st.markdown("**Database:** <span style='color:red;'>Errore</span>", unsafe_allow_html=True)
         
         st.divider()
 
@@ -786,6 +784,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
