@@ -791,7 +791,7 @@ def main():
                     asset_name = get_asset_name(item['ticker']) # AGGIUNTO
                     # CHIAMATA COMPLETA PER DATI TECNICI (Per mostrare il nome e il P&L storico)
                     if item['ticker'] in market_data:
-                        _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90 = evaluate_strategy_full(market_data[item['ticker']]) 
+                        _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90, conf = evaluate_strategy_full(market_data[item['ticker']]) 
                     else:
                         tgt, pot, risk_pr, risk_pot = 0, 0, 0, 0
                         w30, p30, w60, p60, w90, p90 = 0, 0, 0, 0, 0, 0
@@ -823,7 +823,7 @@ def main():
             
                     # CHIAMATA COMPLETA PER DATI TECNICI (Per mostrare il nome e il P&L storico)
                     if item['ticker'] in market_data:
-                        _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90 = evaluate_strategy_full(market_data[item['ticker']]) 
+                        _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90, conf = evaluate_strategy_full(market_data[item['ticker']]) 
                     else:
                         tgt, pot, risk_pr, risk_pot = 0, 0, 0, 0
                         w30, p30, w60, p60, w90, p90 = 0, 0, 0, 0, 0, 0
@@ -954,6 +954,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
