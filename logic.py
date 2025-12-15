@@ -436,19 +436,85 @@ def run_backtest(df, days_list=[30, 60, 90]):
     # Ritorna: Win_30, PnL_30, Win_60, PnL_60, Win_90, PnL_90
     return win_rates[0], avg_pnls[0], win_rates[1], avg_pnls[1], win_rates[2], avg_pnls[2]
 
+# --- NUOVA FUNZIONE: CALCOLO CONFIDENCE SCORE (0-100) ---
+def calculate_confidence(df, is_bullish, action, potential_upside, potential_downside, w30, p30, w60, p60, w90, p90):
+    """
+    Calcola un punteggio di fiducia da 0 a 100 per il segnale BUY/SELL.
+    Pesatura Concettuale: Trend (30%) + Setup (25%) + Rischio (15%) + Backtest (30%)
+    """
+    if df.empty or action not in ["🛒 ACQUISTA ORA! (Dip)", "💎 OPPORTUNITÀ D'ORO"]:
+        # Il Confidence Score è calcolato solo per i segnali di acquisto più forti.
+        return 0
 
+    last_close = df['Close'].iloc[-1]
+    last_sma50 = df['SMA_50'].iloc[-1]
+    last_sma200 = df['SMA_200'].iloc[-1]
+    last_rsi = df['RSI'].iloc[-1]
+    
+    # 1. Trend Strength (30%): Distanza dalla SMA 200 (Normalizzata 0-30 punti)
+    # Più siamo lontani dalla SMA200 (ma sopra), più il trend è solido.
+    # Usiamo SMA50 come proxy per momentum a breve termine.
+    trend_score = 0
+    if is_bullish:
+        # 1a. Se Close > SMA200 (Trend primario)
+        trend_factor = min(1.0, (last_close - last_sma200) / last_sma200 * 10) # 10% sopra SMA200 = 1.0
+        
+        # 1b. Se anche SMA50 > SMA200 (Trend secondario/momentum)
+        if last_sma50 > last_sma200:
+             trend_factor *= 1.2 # Bonus per momentum
+        
+        trend_score = min(30, trend_factor * 30) # Max 30 punti
+
+    # 2. Setup Quality (25%): Profondità del Dip (RSI) e Estremità (Golden vs Dip)
+    setup_score = 0
+    if "ORO" in action:
+        setup_score = 25 # Golden Entry ottiene il massimo
+    else: # ACQUISTA ORA! (Dip)
+        # Più il prezzo è ipervenduto (RSI basso), migliore è il punto di entrata.
+        # RSI 40 -> 0 punti, RSI 20 -> 25 punti
+        setup_factor = max(0, 40 - last_rsi) / 20 
+        setup_score = min(25, setup_factor * 25)
+
+    # 3. Volatility / Risk (15%): Rapporto Rischio/Rendimento Immediato
+    risk_score = 0
+    if potential_upside > 0 and potential_downside < 0:
+        # Rapporto R:R (espresso in percentuale)
+        risk_reward_ratio = potential_upside / abs(potential_downside) 
+        # R:R di 2:1 (RR=2) è ottimo. R:R di 0.5:1 (RR=0.5) è basso.
+        # Normalizziamo RR in modo che 2.0 dia circa 15 punti.
+        risk_score = min(15, risk_reward_ratio / 0.15) # 15/0.15 = 100 max, ma la normalizzazione è più complessa in pratica
+        # Una R:R di 2.0 (ossia 2/0.15) è 13.33 punti, ottimo.
+        risk_score = min(15, risk_score)
+
+    # 4. Backtest Reliability (30%): Win Rate (30G) e PnL Medio (90G)
+    # Bilanciamo la performance a breve termine (Win30) con il risultato a lungo termine (PnL90)
+    backtest_score = 0
+    if w30 > 0:
+        # Ponderazione 1: Successo a breve termine (Win Rate 30G)
+        win_rate_weight = (w30 / 100) * 15 # Max 15 punti (se 100% Win Rate)
+        
+        # Ponderazione 2: Forza a lungo termine (PnL Medio 90G)
+        # Se PnL90 è positivo, è un segnale più robusto nel tempo.
+        pnl_90_weight = max(0, p90) / 5 # Ogni 1% di PnL90 positivo = 3 punti
+        pnl_90_weight = min(15, pnl_90_weight) # Max 15 punti
+        
+        backtest_score = win_rate_weight + pnl_90_weight # Max 30 punti
+
+    # CONFIDENCE SCORE FINALE (Arrotondato)
+    confidence = trend_score + setup_score + risk_score + backtest_score
+    return round(min(100, confidence)) # Assicuriamo un massimo di 100
 
 # --- STRATEGIA DI SCANSIONE ---
 def evaluate_strategy_full(df):
     required_cols = ['SMA_200', 'MACD', 'MACD_SIGNAL', 'BBL', 'BBU', 'RSI', 'ATR']
     for col in required_cols:
         if col not in df.columns:
-            # Inseriamo 6 zeri per i nuovi valori (backtest)
-            return "N/A", "Dati insufficienti", "#eee", 0, 50, 0, "Mancano indicatori", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            # Inseriamo 6 zeri per backtest + 1 zero per Confidence Score
+            return "N/A", "Dati insufficienti", "#eee", 0, 50, 0, "Mancano indicatori", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 # MODIFICATO (18 VALORI)
 
     if df.empty: 
-        # Inseriamo 6 zeri per i nuovi valori (backtest)
-        return "N/A", "Dati insufficienti", "#eee", 0, 50, 0, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        # Inseriamo 6 zeri per backtest + 1 zero per Confidence Score
+        return "N/A", "Dati insufficienti", "#eee", 0, 50, 0, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 # MODIFICATO (18 VALORI)
     
     try:
         last_close = df['Close'].iloc[-1]
@@ -482,7 +548,11 @@ def evaluate_strategy_full(df):
         except Exception as e:
             logger.error(f"Errore calcolo backtest: {e}")
             w30, p30, w60, p60, w90, p90 = 0, 0, 0, 0, 0, 0
-        
+        # --- CALCOLO NUOVO: CONFIDENCE SCORE --- # AGGIUNTO
+        confidence_score = calculate_confidence(
+            df, is_bullish, action, potential_upside, potential_downside, w30, p30, w60, p60, w90, p90
+        )
+
         if is_bullish:
             if last_rsi < 30 and last_close <= last_bbl:
                 action = "💎 OPPORTUNITÀ D'ORO"
@@ -514,12 +584,11 @@ def evaluate_strategy_full(df):
                  reason = "Trend ribassista. Momentum negativo."
                  potential_upside = 0 
                  
-        return trend_label, action, color, last_close, last_rsi, drawdown, reason, technical_target, potential_upside, technical_risk, potential_downside, w30, p30, w60, p60, w90, p90 # Aggiornato con 6 nuovi valori
-        
+        return trend_label, action, color, last_close, last_rsi, drawdown, reason, technical_target, potential_upside, technical_risk, potential_downside, w30, p30, w60, p60, w90, p90, confidence_score # MODIFICATO (18 VALORI)
+
     except Exception as e:
-        logger.error(f"Errore generale in evaluate_strategy_full: {e}") # Aggiunto logging
-        # Deve restituire 17 valori in totale, inclusi 6 zeri per il backtest
-        return "ERR", "Errore", "#eee", 0, 0, 0, str(e), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 # Aggiornato per 17 valori
+        logger.error(f"Errore generale in evaluate_strategy_full: {e}") 
+        return "ERR", "Errore", "#eee", 0, 0, 0, str(e), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 # MODIFICATO (18 VALORI)
 
 # --- STRATEGIA DI PORTAFOGLIO ---
 def generate_portfolio_advice(df, avg_price, current_price):
@@ -586,6 +655,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
