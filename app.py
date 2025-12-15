@@ -143,7 +143,6 @@ def main():
         <div style="background-color: #f0f2f6; padding: 15px; border-radius: 12px; margin-bottom: 20px; text-align: center; border: 1px solid #e0e0e0;">
             <div style="font-size: 3rem; margin-bottom: 5px;">👤</div>
             <h3 style="margin:0; color:#004d40; font-family: sans-serif;">{user}</h3>
-            <p style="margin:0; font-size: 0.8rem; color: #666;">Investitore Premium</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -162,11 +161,9 @@ def main():
         # --- 3. STATO SISTEMA (MINIMAL) ---
         with st.container():
             c_icon, c_text = st.columns([1, 4])
-            with c_icon:
-                st.markdown("☁️")
             with c_text:
                 if db.db_url == "SUPABASE_API_CONNECTION_ACTIVE":
-                    st.markdown("**Database:** <span style='color:green;'>Connesso</span>", unsafe_allow_html=True)
+                    st.markdown("☁️**Database:** <span style='color:green;'>Connesso</span>", unsafe_allow_html=True)
                     st.caption("Supabase Cloud API")
                 else:
                     st.markdown("**Database:** <span style='color:red;'>Errore</span>", unsafe_allow_html=True)
@@ -789,6 +786,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
