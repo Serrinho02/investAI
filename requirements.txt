@@ -9,3 +9,4 @@ schedule
 requests
 st-supabase-connection
 passlib
+bcrypt
