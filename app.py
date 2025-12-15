@@ -225,31 +225,27 @@ def main():
 
                         cols_rec = st.columns(3)
                         for idx, opp in enumerate(opportunities):
-                            # Stile speciale per ORO, altrimenti standard
-                            border_style = "border: 2px solid #FFD700; box-shadow: 0 4px 10px rgba(255, 215, 0, 0.3);" if "ORO" in opp['action'] else "border: 1px solid #ddd;"
-                            
-                            # Colori per i numeri
-                            pot_str = f"+{opp['potential']:.1f}%" if opp['potential'] > 0 else f"{opp['potential']:.1f}%"
-                            
+                            # Stile bordo: Oro per "Golden", standard verde/grigio per altri
+                            border_style = "border: 2px solid #FFD700; box-shadow: 0 0 5px #FFD700;" if "ORO" in opp['action'] else "border: 1px solid #8bc34a;"
+                            # Colore percentuale potenziale
+                            pot_color = "#006400" if opp['potential'] > 0 else "#8b0000"
+                            pot_str = f"+{opp['potential']:.1f}%"
                             with cols_rec[idx % 3]: 
                                 st.markdown(f"""
-                                <div class="suggestion-box" style="background-color: {opp['color']}; {border_style} min-height: 250px; display: flex; flex-direction: column;">
-                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-                                        <h4 style="margin:0; font-size: 1.1rem; font-weight: 700;">{opp['ticker']}</h4>
-                                        <span style="font-size:0.75rem; background:rgba(255,255,255,0.9); padding:2px 6px; border-radius:4px; color:#333; border:1px solid #ccc;">
-                                            RSI: {opp['rsi']:.0f}
-                                        </span>
+                                <div class="suggestion-box" style="background-color:{opp['color']}; {border_style}">
+                                    <div style="display:flex; justify-content:space-between;">
+                                        <h4>{opp['ticker']}</h4>
+                                        <span style="font-weight:bold; color:{pot_color};">{pot_str}</span>
                                     </div>
-                                    <h3 style="margin:0 0 8px 0; color:#222; font-size: 1.15rem;">{opp['action']}</h3>
-                                    <p style="font-size:0.9rem; line-height:1.4; color:#444; flex-grow: 1;">{opp['reason']}</p>
-                                    <div style="margin-top:12px; padding-top:8px; border-top: 1px solid rgba(0,0,0,0.1);">
-                                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
-                                            <span style="color:#555;">Prezzo: <b>${opp['price']:.2f}</b></span>
-                                            <span style="color:#555;">Tgt: <b>${opp['target']:.2f}</b></span>
+                                    <h3 style="color:#004d40; margin:5px 0;">{opp['action']}</h3>
+                                    <p style="font-size:0.9rem;">{opp['reason']}</p>
+                                    <div style="margin-top:8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top:5px;">
+                                        <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                                            <span>Target: <b>${opp['target']:.2f}</b></span>
+                                            <span style="color:#b71c1c;">Risk: <b>{opp['risk_pot']:.1f}%</b></span>
                                         </div>
-                                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem;">
-                                            <span style="color: #006400; font-weight:bold;">✅ {pot_str}</span>
-                                            <span style="color: #b71c1c; font-size: 0.8rem;">Risk: {opp['risk_pot']:.1f}%</span>
+                                        <div style="text-align:right; font-size:0.8rem; margin-top:4px; color:#555;">
+                                            Prezzo: ${opp['price']:.2f} | RSI: {opp['rsi']:.0f}
                                         </div>
                                     </div>
                                 </div>
@@ -747,6 +743,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
