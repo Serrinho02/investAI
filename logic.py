@@ -57,7 +57,7 @@ class DBManager:
             return len(res.data) > 0
         except: return False
 
-def change_password(self, username, new_password):
+    def change_password(self, username, new_password):
         """Aggiorna la password dell'utente"""
         h = hashlib.sha256(new_password.encode()).hexdigest()
         try:
@@ -431,6 +431,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
