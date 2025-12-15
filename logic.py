@@ -281,17 +281,26 @@ class DBManager:
         return {k: v for k, v in portfolio.items() if v["qty"] > 0.0001}, history
 
 # --- HELPER HASHING ---
-def hash_password(password: str) -> str:
+def hash_password(password) -> str: # Rimosso ': str' dal parametro per essere più tollerante in entrata
     """Genera l'hash della password usando il contesto bcrypt, troncando l'input a 72 caratteri."""
-    # MODIFICATO: Tronca la password a 72 caratteri (limite di bcrypt)
-    safe_password = password[:72] 
+    # AGGIUNTO: Converte l'input in stringa e gestisce il caso in cui sia None/vuota
+    p_str = str(password) if password else "" 
+    # Tronca la password a 72 caratteri (limite di bcrypt)
+    safe_password = p_str[:72] 
+    # Aggiungi un controllo per stringa vuota, anche se improbabile con Streamlit
+    if not safe_password:
+        # Se la password è vuota dopo il troncamento, puoi restituire un valore noto o lanciare un errore
+        # Per semplicità e sicurezza, usiamo una stringa minima se è vuota
+        safe_password = "default_unsafe_password_fix"  
     return pwd_context.hash(safe_password)
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
+def verify_password(plain_password, hashed_password: str) -> bool: # Rimosso ': str' dal parametro plain_password
     """Verifica la password in chiaro contro l'hash memorizzato."""
-    # Anche qui, tronca la password in chiaro prima della verifica, per garantire coerenza
-    safe_plain_password = plain_password[:72] # AGGIUNTO
-    return pwd_context.verify(safe_plain_password, hashed_password) # MODIFICATO
+    # AGGIUNTO: Converte l'input in stringa
+    p_str = str(plain_password) if plain_password else ""
+    # Tronca la password in chiaro prima della verifica, per garantire coerenza
+    safe_plain_password = p_str[:72]
+    return pwd_context.verify(safe_plain_password, hashed_password)
 
 # --- HELPER FUNCTIONS ---
 def validate_ticker(ticker):
@@ -576,6 +585,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
