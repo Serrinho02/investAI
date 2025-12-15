@@ -204,60 +204,58 @@ def validate_ticker(ticker):
 def get_data_raw(tickers):
     if not tickers: return {}
     data = {}
-    
-    if len(tickers) == 1:
-        t = tickers[0]
-        try:
-            df = yf.download(t, period="2y", progress=False, auto_adjust=False)
-            if df.empty: return {}
-            if isinstance(df.columns, pd.MultiIndex):
-                try: df.columns = df.columns.get_level_values(0)
-                except: pass
-            process_df(df, data, t)
-        except: pass
-        return data
-
+    # Rimuove duplicati e pulisce i ticker (es. spazi vuoti)
+    unique_tickers = list(set([t.strip().upper() for t in tickers if t]))
+    if not unique_tickers: return {}
     try:
-        df = yf.download(" ".join(tickers), period="2y", group_by='ticker', progress=False, auto_adjust=False)
-        for t in tickers:
-            try:
-                if t in df:
-                    asset_df = df[t].copy()
-                    process_df(asset_df, data, t)
-            except: pass
+        # Scarica tutto in una volta (più efficiente)
+        string_tickers = " ".join(unique_tickers)
+        df = yf.download(string_tickers, period="2y", group_by='ticker', progress=False, auto_adjust=False)
+        # Se c'è un solo ticker, yfinance non usa il MultiIndex, il che confonde il codice dopo.
+        # Questa logica normalizza tutto.
+        if len(unique_tickers) == 1:
+            t = unique_tickers[0]
+            if not df.empty:
+                process_df(df, data, t)
+        else:
+            for t in unique_tickers:
+                try:
+                    if t in df:
+                        # .copy() è fondamentale per evitare "SettingWithCopyWarning"
+                        asset_df = df[t].copy()
+                        # Se il dataframe è vuoto o ha tutti NaN, saltalo
+                        if not asset_df.empty and not asset_df.isnull().all().all():
+                            process_df(asset_df, data, t)
+                except: pass
         return data
-    except: return {}
+    except Exception as e:
+        print(f"Errore download massivo: {e}")
+        return {}
 
 def process_df(df, data, t):
     if len(df) < 205: 
         return 
-    
     df = df.dropna(how='all')
-    
     try:
         df['RSI'] = ta.rsi(df['Close'], length=14)
         df['SMA_200'] = ta.sma(df['Close'], length=200)
         df['SMA_50'] = ta.sma(df['Close'], length=50)
         df['ATR'] = ta.atr(df['High'], df['Low'], df['Close'], length=14)
-
         macd = ta.macd(df['Close'])
         if macd is not None and not macd.empty:
             df['MACD'] = macd.iloc[:, 0]
             df['MACD_SIGNAL'] = macd.iloc[:, 2]
         else:
-            return 
-            
+            return   
         bb = ta.bbands(df['Close'], length=20, std=2)
         if bb is not None and not bb.empty:
             df['BBL'] = bb.iloc[:, 0]
             df['BBU'] = bb.iloc[:, 2]
         else:
-            return
-            
+            return    
         df_clean = df.dropna()
         if not df_clean.empty:
-            data[t] = df_clean
-            
+            data[t] = df_clean     
     except Exception as e:
         pass
 
@@ -398,3 +396,4 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
