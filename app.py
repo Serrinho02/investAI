@@ -296,8 +296,7 @@ def main():
                                         <span style="font-weight:bold; color:{pot_color};">{pot_str}</span>
                                     </div>
                                     <h3 style="color:#004d40; margin:5px 0;">{opp['action']}</h3>
-                                    <p style="font-size:0.9rem;">{opp['reason']}</p>
-                                    
+                                    <p style="font-size:0.9rem;">{opp['reason']}</p> 
                                     <div style="margin-top:8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top:5px;">
                                         <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
                                             <span>Target: <b>${opp['target']:.2f}</b></span>
@@ -826,6 +825,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
