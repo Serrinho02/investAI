@@ -450,6 +450,7 @@ def main():
             if sorted_pf:
                 cols_adv = st.columns(3)
                 for i, (sym, dat) in enumerate(sorted_pf):
+                    asset_name = get_asset_name(sym)
                     tit, adv, col = generate_portfolio_advice(market_data[sym], dat['avg_price'], dat['cur_price'])
                     _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90 = evaluate_strategy_full(market_data[sym])
                     
@@ -460,7 +461,12 @@ def main():
                     with cols_adv[i % 3]:
                         st.markdown(f"""
                             <div class="suggestion-box" style="background-color:{col}; border: 1px solid #bbb; min-height: 280px;">
-                                <div style="display:flex; justify-content:space-between;"><strong>{sym}</strong><span style="color:{'green' if dat['pnl_pct']>=0 else 'red'}; font-weight:bold;">{dat['pnl_pct']:.1f}%</span></div>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <div>
+                                        <strong>{sym}</strong>
+                                        <div style="font-size:0.7rem; color:#666; margin-top:-2px;">{asset_name}</div> </div>
+                                    <span style="color:{'green' if dat['pnl_pct']>=0 else 'red'}; font-weight:bold;">{dat['pnl_pct']:.1f}%</span>
+                                </div>
                                 <h3 style="margin:5px 0; color: #222;">{tit}</h3>
                                 <p style="font-size:0.9rem; margin-bottom: 5px;">{adv}</p>
                                 <hr style="margin: 5px 0; border-color: rgba(0,0,0,0.1);">
@@ -904,3 +910,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
