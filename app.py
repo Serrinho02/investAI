@@ -773,9 +773,6 @@ def main():
                             <div style="display:flex; justify-content:space-between;">
                                 <div>
                                     <h4>{item['ticker']}</h4>
-                                    <div style="font-size:0.75rem; color:#666; margin-bottom:4px;">Probabilità Storica (30d): 
-                                       <span style="font-weight:bold; color:green;">{item['w30']:.0f}%</span>
-                                    </div>
                                 </div>
                                 <span style="font-weight:bold; color:#006400;">+{item['potential']:.1f}%</span>
                             </div>
@@ -857,6 +854,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
