@@ -84,21 +84,31 @@ class DBManager:
         except: return ""
 
     def get_users_with_telegram(self):
+        """Ritorna solo gli utenti che NON hanno STOP_ nel loro ID"""
         try:
             res = self.client.table("users").select("username, tg_chat_id").neq("tg_chat_id", "").execute()
-            # Filtra ed esclude chi inizia con STOP_
+            # Filtro Python: escludi chi inizia con STOP_
             return [(r['username'], r['tg_chat_id']) for r in res.data if not r['tg_chat_id'].startswith("STOP_")]
-        except: return []
+        except Exception as e:
+            print(f"❌ ERRORE get_users_with_telegram: {e}")
+            return []
 
     def get_user_by_chat_id(self, chat_id):
+        """Trova l'utente sia se attivo (ID pulito) sia se stoppato (STOP_ID)"""
         try:
-            # Cerca se l'utente ha l'ID normale OPPURE l'ID con STOP_
-            possible_ids = [str(chat_id), f"STOP_{chat_id}"]
-            res = self.client.table("users").select("username").in_("tg_chat_id", possible_ids).execute()
+            # 1. Cerca l'ID normale
+            res = self.client.table("users").select("username").eq("tg_chat_id", str(chat_id)).execute()
+            if res.data and len(res.data) > 0:
+                return res.data[0]['username']
+            # 2. Se non lo trova, cerca l'ID con prefisso STOP_
+            stop_id = f"STOP_{chat_id}"
+            res = self.client.table("users").select("username").eq("tg_chat_id", stop_id).execute()
             if res.data and len(res.data) > 0:
                 return res.data[0]['username']
             return None
-        except: return None
+        except Exception as e:
+            print(f"❌ ERRORE get_user_by_chat_id: {e}")
+            return None
 
     # --- METODI TRANSAZIONI ---
     
@@ -436,6 +446,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
