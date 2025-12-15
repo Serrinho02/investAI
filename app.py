@@ -160,7 +160,7 @@ def main():
     if not st.session_state.user:
         c1, c2, c3 = st.columns([1,2,1])
         with c2:
-            st.title("💎 InvestAI Ultimate")
+            st.title("💎 InvestAI")
             tab1, tab2 = st.tabs(["Accedi", "Registrati"])
             with tab1:
                 u = st.text_input("Username", key="l_u")
@@ -995,6 +995,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
