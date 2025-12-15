@@ -106,14 +106,14 @@ def main():
             st.title("💎 InvestAI Ultimate")
             tab1, tab2 = st.tabs(["Accedi", "Registrati"])
             with tab1:
-                u = st.text_input("User", key="l_u")
-                p = st.text_input("Pass", type="password", key="l_p")
+                u = st.text_input("Username", key="l_u")
+                p = st.text_input("Password", type="password", key="l_p")
                 if st.button("Login", type="primary", use_container_width=True):
                     if db.login_user(u, p): st.session_state.user = u; st.rerun()
                     else: st.error("Errore credenziali")
             with tab2:
-                nu = st.text_input("Nuovo User", key="r_u")
-                np = st.text_input("Nuova Pass", type="password", key="r_p")
+                nu = st.text_input("Nuovo Username", key="r_u")
+                np = st.text_input("Nuova Password", type="password", key="r_p")
                 if st.button("Crea Account", use_container_width=True):
                     if db.register_user(nu, np): st.success("Creato! Accedi."); 
                     else: st.error("Utente esistente")
@@ -121,19 +121,48 @@ def main():
 
     user = st.session_state.user
     with st.sidebar:
-        st.title(f"👤 {user}")
-        # MENU COMPLETO
-        page = st.radio("Menu", ["📊 Analisi Mercato", "💼 Portafoglio", "💡 Consigli", "⚙️ Impostazioni"], label_visibility="collapsed")
+        # --- 1. PROFILO UTENTE (STILE CARD) ---
+        st.markdown(f"""
+        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 12px; margin-bottom: 20px; text-align: center; border: 1px solid #e0e0e0;">
+            <div style="font-size: 3rem; margin-bottom: 5px;">👤</div>
+            <h3 style="margin:0; color:#004d40; font-family: sans-serif;">{user}</h3>
+            <p style="margin:0; font-size: 0.8rem; color: #666;">Investitore Premium</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # --- 2. MENU DI NAVIGAZIONE ---
+        st.markdown("### 🧭 Navigazione")
+        page = st.radio(
+            "Vai a:", 
+            ["📊 Analisi Mercato", "💼 Portafoglio", "💡 Consigli", "⚙️ Impostazioni"], 
+            label_visibility="collapsed"
+        )
+        
+        # Spaziatore elastico (HTML vuoto) per spingere il contenuto in basso
+        st.markdown("<div style='height: 30px;'></div>", unsafe_allow_html=True)
         st.divider()
         
-        # Debug connessione
-        st.caption("🔧 STATO CONNESSIONE")
-        if db.db_url == "SUPABASE_API_CONNECTION_ACTIVE":
-            st.success("☁️ Cloud: ONLINE (Supabase API)")
-        else:
-            st.warning("⚠️ Stato Sconosciuto")
+        # --- 3. STATO SISTEMA (MINIMAL) ---
+        with st.container():
+            c_icon, c_text = st.columns([1, 4])
+            with c_icon:
+                st.markdown("☁️")
+            with c_text:
+                if db.db_url == "SUPABASE_API_CONNECTION_ACTIVE":
+                    st.markdown("**Database:** <span style='color:green;'>Connesso</span>", unsafe_allow_html=True)
+                    st.caption("Supabase Cloud API")
+                else:
+                    st.markdown("**Database:** <span style='color:red;'>Errore</span>", unsafe_allow_html=True)
+        
+        st.divider()
 
-        if st.button("Logout"): st.session_state.user = None; st.rerun()
+        # --- 4. LOGOUT ---
+        if st.button("🚪 Esci dal Profilo", type="primary", use_container_width=True):
+            st.session_state.user = None
+            st.rerun()
+            
+        # Footer piccolo
+        st.markdown("<div style='text-align: center; font-size: 0.7rem; color: #888; margin-top: 20px;'>InvestAI v2.0 • 2025</div>", unsafe_allow_html=True)
 
     # --- 1. DASHBOARD ANALISI MERCATO ---
     if page == "📊 Analisi Mercato":
@@ -743,6 +772,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
