@@ -40,15 +40,32 @@ start_bot_singleton()
 # --- 3. STILI CSS COMPLETI ---
 st.markdown("""
 <style>
-    /* NASCONDE ELEMENTI STREAMLIT */
+    /* 1. NASCONDI ELEMENTI SPECIFICI, MA NON TUTTO L'HEADER */
+    
+    /* Nasconde il menu hamburger (i 3 puntini a destra) */
     #MainMenu {visibility: hidden;}
+    
+    /* Nasconde il pulsante Deploy */
     .stDeployButton {display: none;}
+    
+    /* Nasconde il footer in basso */
     footer {visibility: hidden;}
+    
+    /* Nasconde la barra colorata decorativa in alto */
     [data-testid="stDecoration"] {display: none;}
+    
+    /* Nasconde widget di stato in basso a destra */
     .stStatusWidget {display: none;}
-    header {visibility: hidden;}
 
-    /* STILI PERSONALIZZATI APP */
+    /* 2. GESTIONE HEADER (LA CORREZIONE È QUI) */
+    /* Non usiamo più 'visibility: hidden' su tutto l'header.
+       Invece, lo rendiamo trasparente per mantenere cliccabile 
+       la freccetta in alto a sinistra per aprire la sidebar. */
+    header {
+        background: transparent !important;
+    }
+
+    /* 3. STILI PERSONALIZZATI APP */
     [data-testid="stMetricValue"] { font-size: 1.8rem; }
     div[data-testid="stExpander"] div[role="button"] p { font-size: 1.1rem; font-weight: 600; }
     .suggestion-box { padding: 15px; border-radius: 10px; border-left: 5px solid; margin-bottom: 10px; }
@@ -772,6 +789,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
