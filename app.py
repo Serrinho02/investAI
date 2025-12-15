@@ -451,7 +451,7 @@ def main():
                 cols_adv = st.columns(3)
                 for i, (sym, dat) in enumerate(sorted_pf):
                     tit, adv, col = generate_portfolio_advice(market_data[sym], dat['avg_price'], dat['cur_price'])
-                    _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(market_data[sym])
+                    _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90 = evaluate_strategy_full(market_data[sym])
                     
                     val_attuale_asset = dat['qty'] * dat['cur_price']
                     # FIX: Uso tot_val (calcolato sopra) invece di tot_val_portfolio
@@ -895,6 +895,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
