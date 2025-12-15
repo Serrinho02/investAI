@@ -247,8 +247,8 @@ def main():
                     
                     for t in AUTO_SCAN_TICKERS:
                         if t in auto_data:
-                            # 11 Valori
-                            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(auto_data[t])
+                            # 17 Valori
+                            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90 = evaluate_strategy_full(auto_data[t]) 
                             
                             if "ACQUISTA" in act or "VENDI" in act or "RISCHIOSO" in act or "ORO" in act:
                                 priority = 0
@@ -266,7 +266,8 @@ def main():
                                     "target": tgt,      
                                     "potential": pot,
                                     "risk": risk_pr,
-                                    "risk_pot": risk_pot
+                                    "risk_pot": risk_pot,
+                                    "w30": w30, "p30": p30, "w60": w60, "p60": p60, "w90": w90, "p90": p90
                                 })
                     
                     if opportunities:
@@ -297,6 +298,9 @@ def main():
                                     </div>
                                     <h3 style="color:#004d40; margin:5px 0;">{opp['action']}</h3>
                                     <p style="font-size:0.9rem;">{opp['reason']}</p> 
+                                    <div style="margin-top:10px; border-top: 1px dashed rgba(0,0,0,0.3); padding-top:5px; font-size:0.85rem; color:#555;">
+                                        <strong style="color:#000;">Probabilità Storica (30g):</strong> <span style="font-weight:bold; color:green;">{opp['w30']:.0f}%</span> (PnL M: <span style="font-weight:bold; color:{'green' if opp['p30']>=0 else 'red'};">{opp['p30']:.1f}%</span>)
+                                    </div>
                                     <div style="margin-top:8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top:5px;">
                                         <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
                                             <span>Target: <b>${opp['target']:.2f}</b></span>
@@ -336,7 +340,7 @@ def main():
                 if selected_ticker in single_asset_data:
                     df = single_asset_data[selected_ticker]
                     
-                    tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(df)
+                    tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90 = evaluate_strategy_full(df)
                     
                     k1, k2, k3, k4 = st.columns(4)
                     k1.metric("Prezzo", f"${pr:,.2f}")
@@ -345,6 +349,17 @@ def main():
                     k4.metric("RSI", f"{rsi:.1f}")
                     
                     st.plotly_chart(create_modern_chart(df, selected_ticker, tl), use_container_width=True)
+
+                    # Aggiungi un riquadro per i risultati storici
+                    st.subheader("Storico del Segnale di Acquisto") # AGGIUNTO
+                
+                    k_w30, k_p30, k_w60, k_p60, k_w90, k_p90 = st.columns(6) # AGGIUNTO
+                    k_w30.metric("Win Rate 30d", f"{w30:.0f}%") # AGGIUNTO
+                    k_p30.metric("PnL Medio 30d", f"{p30:.1f}%", delta_color="off") # AGGIUNTO
+                    k_w60.metric("Win Rate 60d", f"{w60:.0f}%") # AGGIUNTO
+                    k_p60.metric("PnL Medio 60d", f"{p60:.1f}%", delta_color="off") # AGGIUNTO
+                    k_w90.metric("Win Rate 90d", f"{w90:.0f}%") # AGGIUNTO
+                    k_p90.metric("PnL Medio 90d", f"{p90:.1f}%", delta_color="off") # AGGIUNTO
                     
                     st.markdown(f"""
                     <div class="suggestion-box" style="background-color: {col}; border-left: 6px solid #bbb;">
@@ -825,6 +840,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
