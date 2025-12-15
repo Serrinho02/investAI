@@ -234,17 +234,14 @@ def main():
                             with cols_rec[idx % 3]: 
                                 st.markdown(f"""
                                 <div class="suggestion-box" style="background-color: {opp['color']}; {border_style} min-height: 250px; display: flex; flex-direction: column;">
-                                    
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
                                         <h4 style="margin:0; font-size: 1.1rem; font-weight: 700;">{opp['ticker']}</h4>
                                         <span style="font-size:0.75rem; background:rgba(255,255,255,0.9); padding:2px 6px; border-radius:4px; color:#333; border:1px solid #ccc;">
                                             RSI: {opp['rsi']:.0f}
                                         </span>
                                     </div>
-                                    
                                     <h3 style="margin:0 0 8px 0; color:#222; font-size: 1.15rem;">{opp['action']}</h3>
                                     <p style="font-size:0.9rem; line-height:1.4; color:#444; flex-grow: 1;">{opp['reason']}</p>
-                                    
                                     <div style="margin-top:12px; padding-top:8px; border-top: 1px solid rgba(0,0,0,0.1);">
                                         <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
                                             <span style="color:#555;">Prezzo: <b>${opp['price']:.2f}</b></span>
@@ -750,6 +747,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
