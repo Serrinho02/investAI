@@ -5,6 +5,11 @@ import pandas as pd
 import pandas_ta as ta
 import hashlib
 import os
+import logging
+
+# --- CONFIGURAZIONE LOGGING ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # --- CONFIGURAZIONE TELEGRAM ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
@@ -74,14 +79,18 @@ class DBManager:
         try:
             res = self.client.table("users").insert({"username": u, "password": h}).execute()
             return len(res.data) > 0
-        except: return False
+        except Exception as e: # MODIFICATO
+            logger.error(f"Errore registrazione utente {u}: {e}") # AGGIUNTO
+            return False
 
     def login_user(self, u, p):
         h = hashlib.sha256(p.encode()).hexdigest()
         try:
             res = self.client.table("users").select("*").eq("username", u).eq("password", h).execute()
             return len(res.data) > 0
-        except: return False
+        except Exception as e: # MODIFICATO
+            logger.error(f"Errore login utente {u}: {e}") # AGGIUNTO
+            return False
 
     def change_password(self, username, new_password):
         """Aggiorna la password dell'utente"""
@@ -119,7 +128,9 @@ class DBManager:
                 # Pulisce l'ID per mostrarlo nel sito
                 return raw_id.replace("STOP_", "")
             return ""
-        except: return ""
+        except Exception as e: # MODIFICATO
+            logger.error(f"Errore get_user_chat_id per {user}: {e}") # AGGIUNTO
+            return ""
 
     def get_users_with_telegram(self):
         """Ritorna solo gli utenti che NON hanno STOP_ nel loro ID"""
@@ -163,7 +174,9 @@ class DBManager:
         try:
             self.client.table("transactions").insert(data).execute()
             return True
-        except: return False
+        except Exception as e: # MODIFICATO
+            logger.error(f"Errore aggiunta transazione per {user} ({symbol}): {e}") # AGGIUNTO
+            return False
 
     def update_transaction(self, t_id, symbol, qty, price, date_str, type, fee=0.0):
         data = {
@@ -177,13 +190,17 @@ class DBManager:
         try:
             self.client.table("transactions").update(data).eq("id", t_id).execute()
             return True
-        except: return False
+        except Exception as e: # MODIFICATO
+            logger.error(f"Errore aggiornamento transazione ID {t_id}: {e}") # AGGIUNTO
+            return False
 
     def delete_transaction(self, t_id):
         try:
             self.client.table("transactions").delete().eq("id", t_id).execute()
             return True
-        except: return False
+        except Exception as e: # MODIFICATO
+            logger.error(f"Errore eliminazione transazione ID {t_id}: {e}") # AGGIUNTO
+            return False
 
     def get_all_transactions(self, user):
         try:
@@ -219,7 +236,9 @@ class DBManager:
                 # Anche qui, restituiamo una Tupla per il form di modifica
                 return (r['id'], r['symbol'], r['quantity'], r['price'], r['date'], r['type'], r.get('fee', 0.0))
             return None
-        except: return None
+        except Exception as e: # MODIFICATO
+            logger.error(f"Errore get_transaction_by_id per ID {t_id}: {e}") # AGGIUNTO
+            return None
 
     def get_portfolio_summary(self, user):
         # Ora get_all_transactions restituisce TUPLE, quindi usiamo gli indici numerici
@@ -262,7 +281,9 @@ def validate_ticker(ticker):
         t = yf.Ticker(ticker)
         # Fast check: history(period="1d") è molto più veloce e affidabile
         return len(t.history(period="1d")) > 0
-    except: return False
+    except Exception as e: # MODIFICATO
+        logger.debug(f"Validazione fallita per {ticker}: {e}") # AGGIUNTO
+        return False
 
 def get_data_raw(tickers):
     """
@@ -345,7 +366,7 @@ def process_df(df, data, t):
         if not df_clean.empty:
             data[t] = df_clean     
     except Exception as e:
-        pass
+        logger.warning(f"Errore calcolo indicatori per {t}: {e}")
 
 # --- STRATEGIA DI SCANSIONE ---
 def evaluate_strategy_full(df):
@@ -484,6 +505,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
