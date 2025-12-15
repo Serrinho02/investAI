@@ -40,37 +40,65 @@ start_bot_singleton()
 # --- 3. STILI CSS COMPLETI ---
 st.markdown("""
 <style>
-    /* 1. NASCONDI ELEMENTI SPECIFICI, MA NON TUTTO L'HEADER */
-    
-    /* Nasconde il menu hamburger (i 3 puntini a destra) */
+    /* 1. NASCONDI ELEMENTI SPECIFICI */
     #MainMenu {visibility: hidden;}
-    
-    /* Nasconde il pulsante Deploy */
     .stDeployButton {display: none;}
-    
-    /* Nasconde il footer in basso */
     footer {visibility: hidden;}
-    
-    /* Nasconde la barra colorata decorativa in alto */
     [data-testid="stDecoration"] {display: none;}
-    
-    /* Nasconde widget di stato in basso a destra */
     .stStatusWidget {display: none;}
+    header { background: transparent !important; }
 
-    /* 2. GESTIONE HEADER (LA CORREZIONE È QUI) */
-    /* Non usiamo più 'visibility: hidden' su tutto l'header.
-       Invece, lo rendiamo trasparente per mantenere cliccabile 
-       la freccetta in alto a sinistra per aprire la sidebar. */
-    header {
-        background: transparent !important;
-    }
-
-    /* 3. STILI PERSONALIZZATI APP */
+    /* 2. STILI PERSONALIZZATI APP */
     [data-testid="stMetricValue"] { font-size: 1.8rem; }
     div[data-testid="stExpander"] div[role="button"] p { font-size: 1.1rem; font-weight: 600; }
-    .suggestion-box { padding: 15px; border-radius: 10px; border-left: 5px solid; margin-bottom: 10px; }
+    .suggestion-box { 
+        padding: 15px; 
+        border-radius: 10px; 
+        border-left: 5px solid; 
+        margin-bottom: 10px; 
+        /* Regola la larghezza per i dispositivi stretti (utile per Portafoglio) */
+        width: 100% !important; 
+    }
     .tx-row { padding: 10px; border-bottom: 1px solid #333; }
     .stButton button { width: 100%; }
+
+    /* --- MOBILE RESPONSIVE FIXES (NUOVE REGOLE) --- */
+    @media (max-width: 768px) {
+        
+        /* 1. Forza le colonne dei CONSIGLI/PORTAFOGLIO a impilarsi */
+        /* Questo targetta i contenitori che usano st.columns per le metriche e le card */
+        [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 2. Forza le metriche a prendere l'intera larghezza e ad allinearsi */
+        [data-testid="stMetric"] {
+            width: 100% !important;
+            margin-bottom: 15px; /* Aggiunge spazio verticale tra le metriche impilate */
+        }
+        
+        /* 3. Aggiusta la dimensione del font e spaziatura per i titoli */
+        .suggestion-box h4 { font-size: 1.2rem !important; }
+        .suggestion-box h3 { font-size: 1.5rem !important; }
+
+        /* 4. Aggiusta la visualizzazione delle colonne di login */
+        [data-testid="stHorizontalBlock"] > div > [data-testid="stVerticalBlock"] {
+            width: 100% !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+
+        /* 5. Aggiusta il layout a due colonne (Portafoglio e Storico) */
+        /* C_L, C_A nel Portafoglio: fa sì che la colonna "Aggiungi Transazione" sia sotto */
+        [data-testid="stHorizontalBlock"] > div:nth-child(1) {
+            order: 2; /* Sposta il riquadro di aggiunta in basso */
+        }
+        [data-testid="stHorizontalBlock"] > div:nth-child(2) {
+            order: 1; /* Lascia lo storico transazioni in alto */
+            width: 100% !important;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -910,4 +938,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
