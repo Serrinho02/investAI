@@ -6,10 +6,14 @@ import pandas_ta as ta
 import hashlib
 import os
 import logging
+from passlib.context import CryptContext
 
 # --- CONFIGURAZIONE LOGGING ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# --- CONFIGURAZIONE HASHING ---
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # --- CONFIGURAZIONE TELEGRAM ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
@@ -75,7 +79,7 @@ class DBManager:
     # --- METODI UTENTE ---
     
     def register_user(self, u, p):
-        h = hashlib.sha256(p.encode()).hexdigest()
+        h = hash_password(p)
         try:
             res = self.client.table("users").insert({"username": u, "password": h}).execute()
             return len(res.data) > 0
@@ -84,17 +88,19 @@ class DBManager:
             return False
 
     def login_user(self, u, p):
-        h = hashlib.sha256(p.encode()).hexdigest()
         try:
-            res = self.client.table("users").select("*").eq("username", u).eq("password", h).execute()
-            return len(res.data) > 0
-        except Exception as e: # MODIFICATO
-            logger.error(f"Errore login utente {u}: {e}") # AGGIUNTO
+            res = self.client.table("users").select("password").eq("username", u).execute()
+            if res.data and len(res.data) > 0:
+                hashed_password = res.data[0]['password']
+                return verify_password(p, hashed_password) # MODIFICATO: Usa verify_password
+            return False
+        except Exception as e:
+            logger.error(f"Errore login utente {u}: {e}")
             return False
 
     def change_password(self, username, new_password):
         """Aggiorna la password dell'utente"""
-        h = hashlib.sha256(new_password.encode()).hexdigest()
+        h = hash_password(new_password) # MODIFICATO: Usa la funzione hash_password
         try:
             res = self.client.table("users").update({"password": h}).eq("username", username).execute()
             return len(res.data) > 0
@@ -273,6 +279,16 @@ class DBManager:
             history.append({"symbol": sym, "date": dt, "price": price, "type": type_tx, "fee": fee})
 
         return {k: v for k, v in portfolio.items() if v["qty"] > 0.0001}, history
+
+# --- HELPER HASHING ---
+def hash_password(password: str) -> str:
+    """Genera l'hash della password usando il contesto bcrypt."""
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verifica la password in chiaro contro l'hash memorizzato."""
+    # Gestisce automaticamente il salt e il fattore di lavoro
+    return pwd_context.verify(plain_password, hashed_password)
 
 # --- HELPER FUNCTIONS ---
 def validate_ticker(ticker):
@@ -557,6 +573,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
