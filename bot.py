@@ -99,7 +99,7 @@ def send_portfolio(message):
             
             tit, adv, _ = generate_portfolio_advice(market_data[t], data['avg_price'], cur_price)
             # Riceve 17 valori, ignora i 6 di backtest (w30, p30, w60, p60, w90, p90)
-            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, _, _, _, _, _, _ = evaluate_strategy_full(market_data[t])
+            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, _, _, _, _, _, _, _ = evaluate_strategy_full(market_data[t])
             
             pnl = ((cur_price - data['avg_price']) / data['avg_price']) * 100
             emoji = "🟢" if pnl > 0 else "🔴"
@@ -132,12 +132,13 @@ def send_market_scan(message):
     
     for t in AUTO_SCAN_TICKERS:
         if t in market_data:
-            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, _, _, _, _, _, _ = evaluate_strategy_full(market_data[t])
+            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, _, _, _, _, _, _, conf = evaluate_strategy_full(market_data[t])
             
             if "ORO" in act or "ACQUISTA" in act:
                 icon = "💎" if "ORO" in act else "🟢"
                 pot_str = f"+{pot:.1f}%"
                 msg = (f"{icon} <b>{t}</b>: {act}\n"
+                       f"🏆 Score: <b>{conf}/100</b>\n" # AGGIUNTO
                        f"Prezzo: ${pr:.2f} | RSI: {rsi:.0f}\n"
                        f"🎯 Upside: <b>{pot_str}</b>\n"
                        f"<i>{reason}</i>")
@@ -195,8 +196,8 @@ def send_daily_report():
             # 2. Notifiche Mercato (Solo ORO)
             for t in AUTO_SCAN_TICKERS:
                 if t in market_data and (not pf or t not in pf):
-                    _, act, _, _, _, _, _, _, pot, _, _, _, _, _, _, _, _ = evaluate_strategy_full(market_data[t])
-                    if "ORO" in act:
+                    _, act, _, _, _, _, _, _, pot, _, _, _, _, _, _, _, _, conf = evaluate_strategy_full(market_data[t])
+                    if "ORO" in act or ("ACQUISTA" in act and conf >= 40):
                         messages.append(f"💎 <b>{t} - GOLDEN!</b> (+{pot:.1f}%)")
             
             if messages:
