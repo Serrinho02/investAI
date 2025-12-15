@@ -524,7 +524,7 @@ def main():
                         else: st.error("Ticker invalido")
 
     # --- 3. CONSIGLI OPERATIVI ---
-elif page == "💡 Consigli":
+    elif page == "💡 Consigli":
         st.title("L'AI Advisor")
         st.markdown("Analisi completa di tutti gli asset in portafoglio e nuove opportunità.")
 
@@ -737,4 +737,5 @@ elif page == "💡 Consigli":
 
 if __name__ == "__main__":
     main()
+
 
