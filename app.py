@@ -524,97 +524,190 @@ def main():
                         else: st.error("Ticker invalido")
 
     # --- 3. CONSIGLI OPERATIVI ---
-    elif page == "💡 Consigli":
+elif page == "💡 Consigli":
         st.title("L'AI Advisor")
-        st.markdown("Ecco una lista di azioni consigliate basata sul tuo portafoglio attuale e sulle opportunità di mercato.")
+        st.markdown("Analisi completa di tutti gli asset in portafoglio e nuove opportunità.")
 
         if st.button("🔄 Analizza Situazione", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
 
-        with st.spinner("Analisi incrociata Portafoglio vs Mercato..."):
+        with st.spinner("Analisi completa in corso..."):
             pf, _ = db.get_portfolio_summary(user)
             owned_tickers = list(pf.keys())
             
-            # --- FIX CRITICO: Uniamo i ticker posseduti con quelli da scansionare ---
-            # Questo assicura che get_data scarichi ANCHE i tuoi asset
+            # Scarica dati per tutti (Portafoglio + Mercato)
             all_potential_tickers = list(set(owned_tickers + AUTO_SCAN_TICKERS))
             market_data = get_data(all_potential_tickers)
 
-            actions_sell = []
-            actions_buy_more = []
-            actions_new_entry = []
+            # Liste per categorizzare gli asset
+            actions_sell = []      # Urgenze di uscita
+            actions_buy_more = []  # Occasioni di accumulo su asset posseduti
+            actions_hold = []      # Tutto ciò che è stabile (Hold, Moonbag, Wait)
+            actions_new_entry = [] # Nuove opportunità di mercato (non posseduti)
+            
+            missing_tickers = []
 
-            # 1. ANALISI ASSET POSSEDUTI
+            # 1. ANALISI PORTAFOGLIO (TUTTI GLI ASSET)
             for t in owned_tickers:
                 if t in market_data:
                     dat = pf[t]
                     cur_price = market_data[t]['Close'].iloc[-1]
+                    
+                    # Calcoli finanziari
                     val_pos = dat['qty'] * cur_price
                     pnl_val = val_pos - dat['total_cost']
                     dat['pnl_pct'] = (pnl_val / dat['total_cost'] * 100) if dat['total_cost'] > 0 else 0
                     
+                    # Genera il consiglio
                     tit, adv, col = generate_portfolio_advice(market_data[t], dat['avg_price'], cur_price)
                     
-                    item = {"ticker": t, "title": tit, "desc": adv, "color": col, "pnl": dat['pnl_pct']}
-                    if "VENDI" in tit or "VALUTA" in tit: actions_sell.append(item)
-                    elif "ACQUISTA" in tit or "PAC BUY" in tit: actions_buy_more.append(item)
+                    # Oggetto dati per la visualizzazione
+                    item = {
+                        "ticker": t, 
+                        "title": tit, 
+                        "desc": adv, 
+                        "color": col, 
+                        "pnl": dat['pnl_pct'],
+                        "price": cur_price
+                    }
+                    
+                    # --- LOGICA DI SMISTAMENTO ---
+                    # 1. Vendita / Protezione / Incasso
+                    if any(k in tit for k in ["VENDI", "INCASSA", "PROTEGGI", "VALUTA VENDITA", "STOP"]):
+                        actions_sell.append(item)
+                    
+                    # 2. Acquisto / Mediazione
+                    elif any(k in tit for k in ["ACQUISTA", "MEDIA", "ACCUMULO", "PAC"]):
+                        actions_buy_more.append(item)
+                    
+                    # 3. HOLD / MANTENIMENTO (Tutto il resto finisce qui)
+                    else:
+                        # Personalizziamo i colori per renderli distinti
+                        if "MOONBAG" in tit: 
+                            item['color'] = "#e8f5e9" # Verde chiarissimo
+                            item['border'] = "2px solid #4caf50" # Bordo verde acceso
+                        elif "TREND SANO" in tit:
+                            item['color'] = "#f1f8e9"
+                            item['border'] = "1px solid #8bc34a"
+                        else: # Mantieni / Attendi / Attenzione
+                            item['color'] = "#f5f5f5" # Grigio chiaro neutro
+                            item['border'] = "1px solid #ccc"
+                            
+                        actions_hold.append(item)
+                else:
+                    missing_tickers.append(t)
 
-            # 2. ANALISI NUOVE OPPORTUNITÀ
+            # 2. ANALISI NUOVE OPPORTUNITÀ (MERCATO)
             for t in AUTO_SCAN_TICKERS:
                 if t not in owned_tickers and t in market_data:
-                    tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(market_data[t])
+                    _, act, col, pr, rsi, dd, res, tgt, pot, r_pr, r_pot = evaluate_strategy_full(market_data[t])
                     
                     if "ACQUISTA" in act or "ORO" in act:
                         actions_new_entry.append({
-                            "ticker": t, "title": act, "desc": reason, 
+                            "ticker": t, "title": act, "desc": res, 
                             "color": col, "price": pr, "rsi": rsi,
                             "target": tgt, "potential": pot,
-                            "risk": risk_pr, "risk_pot": risk_pot
+                            "risk": r_pr, "risk_pot": r_pot
                         })
 
             # --- VISUALIZZAZIONE ---
-            if actions_sell:
-                st.subheader("💰 Da Monetizzare"); cols = st.columns(3)
-                for i, item in enumerate(actions_sell):
-                    with cols[i%3]: st.markdown(f"""<div class="suggestion-box" style="background-color:{item['color']}; border-color:#ff4444;"><h4>{item['ticker']}</h4><h3 style="color:#cc0000; margin:5px 0;">{item['title']}</h3><p>{item['desc']}</p><p style="font-weight:bold;">Tuo P&L: {item['pnl']:.1f}%</p></div>""", unsafe_allow_html=True)
             
+            # Metriche riassuntive
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Azioni Urgenti", len(actions_sell) + len(actions_buy_more))
+            c2.metric("In Holding", len(actions_hold))
+            c3.metric("Nuove Opportunità", len(actions_new_entry))
             st.divider()
 
+            if missing_tickers:
+                st.warning(f"⚠️ Dati mancanti per: {', '.join(missing_tickers)}")
+
+            # SEZIONE 1: URGENZE (Priorità Alta)
+            if actions_sell:
+                st.subheader("🔴 Richiedono Azione (Vendi/Proteggi)")
+                cols = st.columns(3)
+                for i, item in enumerate(actions_sell):
+                    with cols[i%3]: 
+                        st.markdown(f"""
+                        <div class="suggestion-box" style="background-color:{item['color']}; border: 2px solid #d32f2f;">
+                            <div style="display:flex; justify-content:space-between;">
+                                <h4>{item['ticker']}</h4>
+                                <span style="font-weight:bold; color:#d32f2f;">{item['pnl']:.1f}%</span>
+                            </div>
+                            <h3 style="color:#b71c1c; margin:5px 0;">{item['title']}</h3>
+                            <p style="font-size:0.9rem;">{item['desc']}</p>
+                        </div>""", unsafe_allow_html=True)
+                st.divider()
+
+            # SEZIONE 2: ACCUMULO
+            if actions_buy_more:
+                st.subheader("🟢 Occasioni di Accumulo (Portafoglio)")
+                cols = st.columns(3)
+                for i, item in enumerate(actions_buy_more):
+                    with cols[i%3]: 
+                        st.markdown(f"""
+                        <div class="suggestion-box" style="background-color:{item['color']}; border: 2px solid #2e7d32;">
+                            <div style="display:flex; justify-content:space-between;">
+                                <h4>{item['ticker']}</h4>
+                                <span style="font-weight:bold; color:#2e7d32;">{item['pnl']:.1f}%</span>
+                            </div>
+                            <h3 style="color:#1b5e20; margin:5px 0;">{item['title']}</h3>
+                            <p style="font-size:0.9rem;">{item['desc']}</p>
+                        </div>""", unsafe_allow_html=True)
+                st.divider()
+
+            # SEZIONE 3: HOLDING (QUELLE CHE MANCAVANO!)
+            # Questa sezione viene mostrata SEMPRE se ci sono asset in hold
+            if actions_hold:
+                st.subheader("🔵 Mantenimento & Monitoraggio")
+                st.caption("Asset stabili che non richiedono azioni immediate. Lascia correre i profitti o attendi sviluppi.")
+                
+                cols = st.columns(3)
+                for i, item in enumerate(actions_hold):
+                    # Colore testo dinamico
+                    text_color = "#333"
+                    if "MOONBAG" in item['title']: text_color = "#2e7d32"
+                    elif "ATTENZIONE" in item['title']: text_color = "#f57f17"
+                    
+                    pnl_color = "green" if item['pnl'] >= 0 else "red"
+
+                    with cols[i%3]: 
+                        st.markdown(f"""
+                        <div class="suggestion-box" style="background-color:{item['color']}; border: {item['border']};">
+                            <div style="display:flex; justify-content:space-between;">
+                                <h4>{item['ticker']}</h4>
+                                <span style="font-weight:bold; color:{pnl_color};">{item['pnl']:.1f}%</span>
+                            </div>
+                            <h3 style="color:{text_color}; margin:5px 0; font-size:1.1rem;">{item['title']}</h3>
+                            <p style="font-size:0.85rem; color:#555;">{item['desc']}</p>
+                            <div style="text-align:right; font-size:0.8rem; margin-top:5px;">Prezzo: ${item['price']:.2f}</div>
+                        </div>""", unsafe_allow_html=True)
+                st.divider()
+
+            # SEZIONE 4: OPPORTUNITÀ DI MERCATO
             if actions_new_entry:
-                st.subheader("🚀 Nuove Opportunità"); cols = st.columns(3)
+                st.subheader("🚀 Nuove Opportunità (Mercato)")
+                cols = st.columns(3)
                 for i, item in enumerate(actions_new_entry):
-                    border_style = "border: 2px solid #FFD700; box-shadow: 0 0 10px #FFD700;" if "ORO" in item['title'] else "border-color: #00cc00;"
+                    border_style = "border: 2px solid #FFD700; box-shadow: 0 0 5px #FFD700;" if "ORO" in item['title'] else "border: 1px solid #ccc;"
                     with cols[i%3]: 
                         st.markdown(f"""
                         <div class="suggestion-box" style="background-color:{item['color']}; {border_style}">
-                            <h4>{item['ticker']}</h4>
-                            <h3 style="color:#006600; margin:5px 0;">{item['title']}</h3>
+                            <div style="display:flex; justify-content:space-between;">
+                                <h4>{item['ticker']}</h4>
+                                <span style="font-size:0.8rem; background:rgba(255,255,255,0.8); padding:2px;">RSI: {item['rsi']:.0f}</span>
+                            </div>
+                            <h3 style="color:#004d40; margin:5px 0;">{item['title']}</h3>
                             <p style="font-size:0.9rem;">{item['desc']}</p>
-                            <div style="margin-top:10px; padding-top:5px; border-top:1px solid rgba(0,0,0,0.1); font-size:0.8rem;">
-                                <div>Prezzo: ${item['price']:.2f} | RSI: {item['rsi']:.0f}</div>
-                                <div style="margin-top:8px; display:flex; justify-content:space-between; background:rgba(255,255,255,0.5); padding:5px; border-radius:4px;">
-                                    <div style="text-align:left;">
-                                        <div style="color:#006400; font-weight:bold;">✅ +{item['potential']:.1f}%</div>
-                                        <div style="font-size:0.75rem;">${item['target']:.1f}</div>
-                                    </div>
-                                    <div style="text-align:right;">
-                                        <div style="color:#8b0000; font-weight:bold;">🔻 {item['risk_pot']:.1f}%</div>
-                                        <div style="font-size:0.75rem;">${item['risk']:.1f}</div>
-                                    </div>
-                                </div>
+                            <div style="margin-top:8px; font-size:0.8rem; display:flex; justify-content:space-between;">
+                                <span style="color:green;"><b>Target: ${item['target']:.1f}</b></span>
+                                <span style="color:#d32f2f;">Risk: {item['risk_pot']:.1f}%</span>
                             </div>
                         </div>""", unsafe_allow_html=True)
-            else: st.info("Nessuna nuova opportunità di acquisto evidente sul mercato al momento.")
 
-            st.divider()
-
-            if actions_buy_more:
-                st.subheader("🛒 Da Accumulare (Già in Portafoglio)"); cols = st.columns(3)
-                for i, item in enumerate(actions_buy_more):
-                    with cols[i%3]: st.markdown(f"""<div class="suggestion-box" style="background-color:{item['color']}; border-color:#00cc00;"><h4>{item['ticker']}</h4><h3 style="color:#006600; margin:5px 0;">{item['title']}</h3><p>{item['desc']}</p><p style="font-weight:bold;">Tuo P&L: {item['pnl']:.1f}%</p></div>""", unsafe_allow_html=True)
-            
-            if not actions_sell and not actions_new_entry and not actions_buy_more: st.success("Tutto tranquillo! Il tuo portafoglio è stabile.")
+            if not (actions_sell or actions_buy_more or actions_hold or actions_new_entry):
+                st.info("Nessun dato disponibile per generare consigli.")
 
     # --- 4. IMPOSTAZIONI ---
     elif page == "⚙️ Impostazioni":
@@ -644,3 +737,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
