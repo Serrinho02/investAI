@@ -708,6 +708,12 @@ def main():
                 st.subheader("🔴 Richiedono Azione (Vendi/Proteggi)")
                 cols = st.columns(3)
                 for i, item in enumerate(actions_sell):
+                    asset_name = get_asset_name(item['ticker'])
+                    if item['ticker'] in market_data:
+                        _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90 = evaluate_strategy_full(market_data[item['ticker']]) 
+                    else: # Fallback se i dati sono stati persi
+                        tgt, pot, risk_pr, risk_pot = 0, 0, 0, 0
+                        w30, p30, w60, p60, w90, p90 = 0, 0, 0, 0, 0, 0
                     with cols[i%3]: 
                         st.markdown(f"""
                         <div class="suggestion-box" style="background-color:{item['color']}; border: 2px solid #d32f2f;">
@@ -728,6 +734,14 @@ def main():
                 st.subheader("🟢 Occasioni di Accumulo (Portafoglio)")
                 cols = st.columns(3)
                 for i, item in enumerate(actions_buy_more):
+                    asset_name = get_asset_name(item['ticker']) # AGGIUNTO
+                    # CHIAMATA COMPLETA PER DATI TECNICI (Per mostrare il nome e il P&L storico)
+                    if item['ticker'] in market_data:
+                        _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90 = evaluate_strategy_full(market_data[item['ticker']]) 
+                    else:
+                        tgt, pot, risk_pr, risk_pot = 0, 0, 0, 0
+                        w30, p30, w60, p60, w90, p90 = 0, 0, 0, 0, 0, 0
+            
                     with cols[i%3]: 
                         st.markdown(f"""
                         <div class="suggestion-box" style="background-color:{item['color']}; border: 2px solid #2e7d32;">
@@ -751,6 +765,16 @@ def main():
                 
                 cols = st.columns(3)
                 for i, item in enumerate(actions_hold):
+                    asset_name = get_asset_name(item['ticker']) # AGGIUNTO
+            
+                    # CHIAMATA COMPLETA PER DATI TECNICI (Per mostrare il nome e il P&L storico)
+                    if item['ticker'] in market_data:
+                        _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90 = evaluate_strategy_full(market_data[item['ticker']]) 
+                    else:
+                        tgt, pot, risk_pr, risk_pot = 0, 0, 0, 0
+                        w30, p30, w60, p60, w90, p90 = 0, 0, 0, 0, 0, 0
+
+                    
                     # Colore testo dinamico
                     text_color = "#333"
                     if "MOONBAG" in item['title']: text_color = "#2e7d32"
@@ -779,6 +803,7 @@ def main():
                 st.subheader("🚀 Nuove Opportunità (Mercato)")
                 cols = st.columns(3)
                 for i, item in enumerate(actions_new_entry):
+                    asset_name = get_asset_name(item['ticker'])
                     # Bordo speciale per "ORO", altrimenti bordo standard grigio/verde
                     border_style = "border: 2px solid #FFD700; box-shadow: 0 0 5px #FFD700;" if "ORO" in item['title'] else "border: 1px solid #8bc34a;"
                     
