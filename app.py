@@ -246,36 +246,44 @@ def main():
                     golden_found = False
                     
                     for t in AUTO_SCAN_TICKERS:
-                        if t in auto_data:
-                            # 15 Valori (aggiunti: success_rate, pnl30, pnl60, pnl90)
-                            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, success_rate, pnl30, pnl60, pnl90 = evaluate_strategy_full(auto_data[t])
-                            # Prepara backtest_results per l'uso nel dizionario
-                            backtest_results = (success_rate, pnl30, pnl60, pnl90, 0) # total_signals non è necessario qui, ma manteniamo la struttura
-                            
-                            if "ACQUISTA" in act or "VENDI" in act or "RISCHIOSO" in act or "ORO" in act:
-                                priority = 0
-                                if "ORO" in act: 
-                                    priority = 3
-                                    golden_found = True
-                                elif "ACQUISTA" in act: priority = 2
-                                elif "VENDI" in act: priority = 1
+                        if t in auto_data:
+                            # 15 Valori (CORRETTO)
+                            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, success_rate, pnl30, pnl60, pnl90 = evaluate_strategy_full(auto_data[t])
+                            
+                            # Il 15° valore è total_signals. Dobbiamo recuperarlo da qualche parte!
+                            # Se non lo hai estratto in logic.py, dobbiamo rifare la chiamata in logic.py
+                            # MA se assumiamo che total_signals sia l'ultimo valore (il 15°), 
+                            # il backtest in logic.py deve restituire 15 valori (success_rate, pnl30, pnl60, pnl90, total_signals)
+                            # Riassegniamo i 4 valori di backtest + total_signals (5 valori)
+                            if len(evaluate_strategy_full(auto_data[t])) == 15:
+                                total_signals = evaluate_strategy_full(auto_data[t])[14]
+                            else:
+                                total_signals = 0
                                 
-                                total_signals = backtest_results[4] # Ottieni il numero di segnali
-                                opportunities.append({
-                                    "ticker": t, "trend": tl, "action": act, 
-                                    "color": col, "price": pr, "rsi": rsi, 
-                                    "drawdown": dd, "reason": reason,
-                                    "priority": priority,
-                                    "target": tgt,      
-                                    "potential": pot,
-                                    "risk": risk_pr,
-                                    "risk_pot": risk_pot,
-                                    # NUOVI VALORI DI BACKTEST
-                                    "success_rate": success_rate, 
-                                    "pnl30": pnl30, 
-                                    "pnl60": pnl60,
-                                    "total_signals": total_signals 
-                                })
+                            
+                            if "ACQUISTA" in act or "VENDI" in act or "RISCHIOSO" in act or "ORO" in act:
+                                priority = 0
+                                if "ORO" in act: 
+                                    priority = 3
+                                    golden_found = True
+                                elif "ACQUISTA" in act: priority = 2
+                                elif "VENDI" in act: priority = 1
+                                
+                                opportunities.append({
+                                    "ticker": t, "trend": tl, "action": act, 
+                                    "color": col, "price": pr, "rsi": rsi, 
+                                    "drawdown": dd, "reason": reason,
+                                    "priority": priority,
+                                    "target": tgt,      
+                                    "potential": pot,
+                                    "risk": risk_pr,
+                                    "risk_pot": risk_pot,
+                                    # NUOVI VALORI DI BACKTEST
+                                    "success_rate": success_rate, 
+                                    "pnl30": pnl30, 
+                                    "pnl60": pnl60,
+                                    "total_signals": total_signals 
+                                })
                     
                     if opportunities:
                         opportunities = sorted(opportunities, key=lambda x: x['priority'], reverse=True)
@@ -864,6 +872,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
