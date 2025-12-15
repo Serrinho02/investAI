@@ -6,67 +6,72 @@ import pandas as pd
 import threading
 import time
 
-# IMPORTIAMO IL CERVELLO CONDIVISO (Assicurati che logic.py sia nella stessa cartella)
+# IMPORTIAMO IL CERVELLO CONDIVISO
 from logic import DBManager, get_data_raw, evaluate_strategy_full, generate_portfolio_advice, AUTO_SCAN_TICKERS, POPULAR_ASSETS, validate_ticker
+from bot import run_scheduler, bot 
 
-from bot import run_scheduler, bot # Importiamo le funzioni dal file bot.py
+# --- 1. CONFIGURAZIONE PAGINA (DEVE ESSERE LA PRIMA ISTRUZIONE STREAMLIT) ---
+st.set_page_config(page_title="InvestAI Ultimate", layout="wide", page_icon="💎")
 
-# --- AVVIO BOT IN BACKGROUND ---
-# Questo trucco avvia il bot in un thread separato senza bloccare il sito
-if 'bot_active' not in st.session_state:
-    st.session_state.bot_active = True
-    
-    # 1. Thread per lo scheduler (messaggio delle 08:00)
+# --- 2. AVVIO BOT IN BACKGROUND (SINGLETON) ---
+# @st.cache_resource garantisce che questo codice venga eseguito UNA SOLA VOLTA
+# all'avvio del server e mai più, evitando l'errore 409 Conflict.
+@st.cache_resource
+def start_bot_background():
+    # A. Thread per lo scheduler (messaggio delle 08:00)
     t_sched = threading.Thread(target=run_scheduler, daemon=True)
     t_sched.start()
     
-    # 2. Thread per ascoltare i comandi Telegram
+    # B. Thread per ascoltare i comandi Telegram
     def start_bot_polling():
         try:
-            bot.infinity_polling()
-        except:
+            # Rimuove eventuali blocchi precedenti
+            bot.remove_webhook()
+            time.sleep(1)
+            # skip_pending=True evita di processare vecchi messaggi all'avvio
+            bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
+        except Exception as e:
+            print(f"Errore critico bot: {e}")
             pass
             
     t_bot = threading.Thread(target=start_bot_polling, daemon=True)
     t_bot.start()
-    print("🤖 Bot Telegram avviato in background!")
+    print("🤖 Bot Telegram avviato in modalità Singleton (Protetto)!")
+    return True
 
+# Lancia la funzione (Streamlit controllerà la cache e lo farà solo una volta)
+start_bot_background()
 
-
-
-# --- CONFIGURAZIONE ---
-st.set_page_config(page_title="InvestAI Ultimate", layout="wide", page_icon="💎")
-
-# --- NASCONDI MENU E FOOTER ---
-# --- CSS PER NASCONDERE TUTTO (Menu, Footer, Decorazioni) ---
+# --- 3. CSS PER NASCONDERE TUTTO (Menu, Footer, Decorazioni) ---
 st.markdown("""
     <style>
         /* Nasconde il menu hamburger e il pulsante Deploy */
         #MainMenu {visibility: hidden;}
         .stDeployButton {display: none;}
+        
         /* Nasconde il footer testuale in basso */
         footer {visibility: hidden;}
+        
         /* Nasconde la decorazione con il logo Streamlit (barchetta rossa) */
         [data-testid="stDecoration"] {
             display: none;
         }
-        /* Se c'è anche un'altra barra di stato o logo in basso, proviamo a nasconderla così */
+        
+        /* Nasconde widget di stato */
         .stStatusWidget {
             display: none;
         }
+        
         /* Nasconde la barra superiore (header) */
         header {visibility: hidden;}
+        
+        /* Stili personalizzati per l'app */
+        [data-testid="stMetricValue"] { font-size: 1.8rem; }
+        div[data-testid="stExpander"] div[role="button"] p { font-size: 1.1rem; font-weight: 600; }
+        .suggestion-box { padding: 15px; border-radius: 10px; border-left: 5px solid; margin-bottom: 10px; }
+        .tx-row { padding: 10px; border-bottom: 1px solid #333; }
+        .stButton button { width: 100%; }
     </style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<style>
-    [data-testid="stMetricValue"] { font-size: 1.8rem; }
-    div[data-testid="stExpander"] div[role="button"] p { font-size: 1.1rem; font-weight: 600; }
-    .suggestion-box { padding: 15px; border-radius: 10px; border-left: 5px solid; margin-bottom: 10px; }
-    .tx-row { padding: 10px; border-bottom: 1px solid #333; }
-    .stButton button { width: 100%; }
-</style>
 """, unsafe_allow_html=True)
 
 db = DBManager()
@@ -680,6 +685,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
