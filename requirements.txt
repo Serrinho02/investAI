@@ -8,3 +8,4 @@ pyTelegramBotAPI
 schedule
 requests
 st-supabase-connection
+passlib
