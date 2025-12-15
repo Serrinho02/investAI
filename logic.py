@@ -322,8 +322,19 @@ def get_data_raw(tickers):
 
 def process_df(df, data, t):
     if len(df) < 205: 
+        # Logga se lo storico è troppo breve
+        print(f"⚠️ Dati insufficienti per {t}: solo {len(df)} righe (necessarie 205).")
         return 
     df = df.dropna(how='all')
+    # Inizializza le colonne degli indicatori a NaN in caso di fallimento parziale
+    df['RSI'] = pd.NA
+    df['SMA_200'] = pd.NA
+    df['SMA_50'] = pd.NA
+    df['ATR'] = pd.NA
+    df['MACD'] = pd.NA
+    df['MACD_SIGNAL'] = pd.NA
+    df['BBL'] = pd.NA
+    df['BBU'] = pd.NA
     try:
         df['RSI'] = ta.rsi(df['Close'], length=14)
         df['SMA_200'] = ta.sma(df['Close'], length=200)
@@ -334,41 +345,122 @@ def process_df(df, data, t):
             df['MACD'] = macd.iloc[:, 0]
             df['MACD_SIGNAL'] = macd.iloc[:, 2]
         else:
-            return   
+            print(f"❌ Fallimento MACD per {t}")
+            return # Torna se l'indicatore base fallisce
         bb = ta.bbands(df['Close'], length=20, std=2)
         if bb is not None and not bb.empty:
             df['BBL'] = bb.iloc[:, 0]
             df['BBU'] = bb.iloc[:, 2]
         else:
-            return    
-        df_clean = df.dropna()
+            print(f"❌ Fallimento Bollinger Bands per {t}")
+            return # Torna se l'indicatore base fallisce
+        df_clean = df.dropna(subset=['Close', 'RSI', 'SMA_200', 'BBL', 'MACD'])
         if not df_clean.empty:
             data[t] = df_clean     
     except Exception as e:
-        pass
+        # Logga l'errore tecnico anziché ignorarlo
+        print(f"❌ Errore critico in process_df per {t}: {e}")
 
 # --- STRATEGIA DI SCANSIONE ---
+
+# --- BACKTEST E STATISTICHE STORICHE ---
+def run_backtest(df, action_criteria, lookback_days=365):
+    """
+    Simula l'esecuzione storica della strategia 'action_criteria' e calcola PnL medio
+    dopo 30, 60, 90 giorni.
+    """
+    signals = []
+    
+    # Definisce le colonne target per il PnL
+    df['PnL_30D'] = df['Close'].shift(-30) / df['Close'] - 1
+    df['PnL_60D'] = df['Close'].shift(-60) / df['Close'] - 1
+    df['PnL_90D'] = df['Close'].shift(-90) / df['Close'] - 1
+    
+    # Analizza l'ultimo anno di dati (lookback_days)
+    df_history = df.tail(lookback_days).copy().dropna(subset=['Close', 'RSI', 'SMA_200', 'BBL', 'BBU', 'MACD', 'MACD_SIGNAL'])
+    
+    if df_history.empty:
+        return 0, 0, 0, 0, 0 # success_rate, pnl30, pnl60, pnl90, total_signals
+
+    # Itera sui giorni storici per trovare i segnali
+    for i in range(len(df_history) - 90): # Sottraiamo 90 per avere dati PnL a 90 giorni validi
+        
+        # Estrai i dati del giorno i-esimo
+        row = df_history.iloc[i]
+        
+        # Ricrea la condizione di segnale (es. 'ACQUISTA ORA! (Dip)')
+        is_bullish = row['Close'] > row['SMA_200']
+        
+        signal_triggered = False
+        
+        if is_bullish:
+            if action_criteria == "ACQUISTA ORA! (Dip)" and (row['RSI'] < 40 or row['Close'] <= row['BBL'] * 1.01):
+                signal_triggered = True
+            elif action_criteria == "OPPORTUNITÀ D'ORO" and (row['RSI'] < 30 and row['Close'] <= row['BBL']):
+                signal_triggered = True
+        
+        # Aggiungi qui altre condizioni (VENDI, etc.) se desideri analizzarle storicamente
+        
+        if signal_triggered:
+            # PnL è positivo se Close_futuro > Close_attuale
+            pnl_30d = row['PnL_30D']
+            pnl_60d = row['PnL_60D']
+            pnl_90d = row['PnL_90D']
+            
+            # Controlla che i PnL non siano NaN (solo per l'ultima finestra)
+            if pd.notna(pnl_90d):
+                signals.append({
+                    '30D': pnl_30d, 
+                    '60D': pnl_60d, 
+                    '90D': pnl_90d, 
+                    'Success': pnl_90d > 0 # Definiamo successo se PnL a 90 giorni > 0
+                })
+
+    if not signals:
+        return 0, 0, 0, 0, 0
+
+    df_signals = pd.DataFrame(signals)
+    
+    total_signals = len(df_signals)
+    success_rate = (df_signals['Success'].sum() / total_signals) * 100
+    
+    avg_pnl_30d = df_signals['30D'].mean() * 100
+    avg_pnl_60d = df_signals['60D'].mean() * 100
+    avg_pnl_90d = df_signals['90D'].mean() * 100
+    
+    return success_rate, avg_pnl_30d, avg_pnl_60d, avg_pnl_90d, total_signals
+
+
+# --- STRATEGIA DI SCANSIONE (CON BACKTEST) ---
 def evaluate_strategy_full(df):
     required_cols = ['SMA_200', 'MACD', 'MACD_SIGNAL', 'BBL', 'BBU', 'RSI', 'ATR']
     for col in required_cols:
         if col not in df.columns:
-            return "N/A", "Dati insufficienti", "#eee", 0, 50, 0, "Mancano indicatori", 0, 0, 0, 0
+            # Ritorna 4 valori di backtest extra (0, 0, 0, 0)
+            return "N/A", "Dati insufficienti", "#eee", 0, 50, 0, "Mancano indicatori", 0, 0, 0, 0, 0, 0, 0, 0
 
     if df.empty: 
-        return "N/A", "Dati insufficienti", "#eee", 0, 50, 0, "", 0, 0, 0, 0
+        return "N/A", "Dati insufficienti", "#eee", 0, 50, 0, "", 0, 0, 0, 0, 0, 0, 0, 0
+    
+    # Inizializza i risultati del backtest
+    backtest_results = (0, 0, 0, 0, 0) # success_rate, pnl30, pnl60, pnl90, total_signals
     
     try:
         last_close = df['Close'].iloc[-1]
-        last_sma200 = df['SMA_200'].iloc[-1]
-        last_rsi = df['RSI'].iloc[-1]
-        last_macd = df['MACD'].iloc[-1]
-        last_macd_signal = df['MACD_SIGNAL'].iloc[-1]
-        last_bbl = df['BBL'].iloc[-1]
-        last_bbu = df['BBU'].iloc[-1]
-        last_atr = df['ATR'].iloc[-1]
+        
+        def get_last(col, default=0):
+            return df[col].iloc[-1] if col in df.columns and pd.notna(df[col].iloc[-1]) else default
+
+        last_sma200 = get_last('SMA_200', last_close)
+        last_rsi = get_last('RSI', 50)
+        last_macd = get_last('MACD')
+        last_macd_signal = get_last('MACD_SIGNAL')
+        last_bbl = get_last('BBL', last_close * 0.95)
+        last_bbu = get_last('BBU', last_close * 1.05)
+        last_atr = get_last('ATR', last_close * 0.02)
         
         max_price = df['Close'].max()
-        drawdown = ((last_close - max_price) / max_price) * 100
+        drawdown = ((last_close - max_price) / max_price) * 100 if max_price > 0 else 0
         
         is_bullish = last_close > last_sma200
         trend_label = "BULLISH (Rialzista)" if is_bullish else "BEARISH (Ribassista)"
@@ -388,36 +480,49 @@ def evaluate_strategy_full(df):
                 action = "💎 OPPORTUNITÀ D'ORO"
                 color = "#FFD700"
                 reason = "RARITÀ: Asset in trend rialzista crollato a livelli estremi."
+                # --- BACKTEST CHIAMATA ---
+                backtest_results = run_backtest(df, "OPPORTUNITÀ D'ORO")
+
             elif last_rsi < 40 or last_close <= last_bbl * 1.01: 
                 action = "🛒 ACQUISTA ORA! (Dip)"
                 color = "#ccffcc"
                 reason = "Trend rialzista + Prezzo a sconto."
+                # --- BACKTEST CHIAMATA ---
+                backtest_results = run_backtest(df, "ACQUISTA ORA! (Dip)")
+
             elif last_rsi > 75 or (last_close >= last_bbu and last_macd < last_macd_signal):
-                 action = "💰 VENDI PARZIALE"
-                 color = "#ffdddd"
-                 reason = "Prezzo esteso. Rischio ritracciamento."
-                 technical_risk = last_sma200 
-                 potential_downside = ((technical_risk - last_close) / last_close) * 100
+                action = "💰 VENDI PARZIALE"
+                color = "#ffdddd"
+                reason = "Prezzo esteso. Rischio ritracciamento."
+                technical_risk = last_sma200 
+                potential_downside = ((technical_risk - last_close) / last_close) * 100
             else:
-                 action = "🚀 TREND SOLIDO"
-                 color = "#e6f4ea"
-                 reason = "Il trend è sano. Lascia correre."
+                action = "🚀 TREND SOLIDO"
+                color = "#e6f4ea"
+                reason = "Il trend è sano. Lascia correre."
 
         else: # BEARISH
             if last_rsi < 30 and last_close < last_bbl:
-                 action = "⚠️ TENTATIVO RISCHIOSO"
-                 color = "#fff4cc"
-                 reason = "Rimbalzo tecnico (Dead Cat Bounce)."
+                action = "⚠️ TENTATIVO RISCHIOSO"
+                color = "#fff4cc"
+                reason = "Rimbalzo tecnico (Dead Cat Bounce)."
             elif last_macd < last_macd_signal:
-                 action = "⛔ STAI ALLA LARGA"
-                 color = "#fcfcfc"
-                 reason = "Trend ribassista. Momentum negativo."
-                 potential_upside = 0 
-                 
-        return trend_label, action, color, last_close, last_rsi, drawdown, reason, technical_target, potential_upside, technical_risk, potential_downside
+                action = "⛔ STAI ALLA LARGA"
+                color = "#fcfcfc"
+                reason = "Trend ribassista. Momentum negativo."
+                potential_upside = 0 
+                
+        # Estrai i risultati del backtest
+        success_rate, pnl30, pnl60, pnl90, total_signals = backtest_results
+
+        # Ritorna 15 valori totali
+        return trend_label, action, color, last_close, last_rsi, drawdown, reason, technical_target, potential_upside, technical_risk, potential_downside, success_rate, pnl30, pnl60, pnl90
         
     except Exception as e:
-        return "ERR", "Errore", "#eee", 0, 0, 0, str(e), 0, 0, 0, 0
+        # Logga l'errore se fallisce l'analisi
+        print(f"❌ Errore critico in evaluate_strategy_full: {e}")
+        # Ritorna 4 valori di backtest extra (0, 0, 0, 0)
+        return "ERR", "Errore", "#eee", 0, 0, 0, str(e), 0, 0, 0, 0, 0, 0, 0, 0
 
 # --- STRATEGIA DI PORTAFOGLIO ---
 def generate_portfolio_advice(df, avg_price, current_price):
@@ -484,6 +589,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
