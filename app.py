@@ -713,7 +713,7 @@ def main():
                         <div class="suggestion-box" style="background-color:{item['color']}; border: 2px solid #d32f2f;">
                             <div style="display:flex; justify-content:space-between;">
                                 <div>
-                                    <h4 style="margin:0;">{opp['ticker']}</h4>
+                                    <h4 style="margin:0;">{item['ticker']}</h4>
                                     <div style="font-size:0.75rem; color:#666; margin-bottom:4px;">{asset_name}</div>
                                 </div>
                                 <span style="font-weight:bold; color:#d32f2f;">{item['pnl']:.1f}%</span>
@@ -733,7 +733,7 @@ def main():
                         <div class="suggestion-box" style="background-color:{item['color']}; border: 2px solid #2e7d32;">
                             <div style="display:flex; justify-content:space-between;">
                                 <div>
-                                    <h4 style="margin:0;">{opp['ticker']}</h4>
+                                    <h4 style="margin:0;">{item['ticker']}</h4>
                                     <div style="font-size:0.75rem; color:#666; margin-bottom:4px;">{asset_name}</div>
                                 </div>
                                 <span style="font-weight:bold; color:#2e7d32;">{item['pnl']:.1f}%</span>
@@ -763,7 +763,7 @@ def main():
                         <div class="suggestion-box" style="background-color:{item['color']}; border: {item['border']};">
                             <div style="display:flex; justify-content:space-between;">
                                 <div>
-                                    <h4 style="margin:0;">{opp['ticker']}</h4>
+                                    <h4 style="margin:0;">{item['ticker']}</h4>
                                     <div style="font-size:0.75rem; color:#666; margin-bottom:4px;">{asset_name}</div>
                                 </div>
                                 <span style="font-weight:bold; color:{pnl_color};">{item['pnl']:.1f}%</span>
@@ -787,7 +787,7 @@ def main():
                         <div class="suggestion-box" style="background-color:{item['color']}; {border_style}">
                             <div style="display:flex; justify-content:space-between;">
                                 <div>
-                                    <h4 style="margin:0;">{opp['ticker']}</h4>
+                                    <h4 style="margin:0;">{item['ticker']}</h4>
                                     <div style="font-size:0.75rem; color:#666; margin-bottom:4px;">{asset_name}</div>
                                 </div>
                                 <span style="font-weight:bold; color:#006400;">+{item['potential']:.1f}%</span>
@@ -870,6 +870,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
