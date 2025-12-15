@@ -442,9 +442,6 @@ def calculate_confidence(df, is_bullish, action, potential_upside, potential_dow
     Calcola un punteggio di fiducia da 0 a 100 per il segnale BUY/SELL.
     Pesatura Concettuale: Trend (30%) + Setup (25%) + Rischio (15%) + Backtest (30%)
     """
-    if df.empty or action not in ["🛒 ACQUISTA ORA! (Dip)", "💎 OPPORTUNITÀ D'ORO"]:
-        # Il Confidence Score è calcolato solo per i segnali di acquisto più forti.
-        return 0
 
     last_close = df['Close'].iloc[-1]
     last_sma50 = df['SMA_50'].iloc[-1]
@@ -655,6 +652,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
