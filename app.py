@@ -11,7 +11,7 @@ from logic import DBManager, get_data_raw, evaluate_strategy_full, generate_port
 from bot import run_scheduler, bot 
 
 # --- 1. CONFIGURAZIONE (DEVE ESSERE LA PRIMA RIGA) ---
-st.set_page_config(page_title="InvestAI Ultimate", layout="wide", page_icon="💎")
+st.set_page_config(page_title="InvestAI", layout="wide", page_icon="💎")
 
 # --- 2. AVVIO BOT IN BACKGROUND (SINGLETON PROTETTO) ---
 @st.cache_resource
@@ -162,7 +162,6 @@ def main():
         with st.container():
             if db.db_url == "SUPABASE_API_CONNECTION_ACTIVE":
                 st.markdown("☁️**Database:** <span style='color:green;'>Connesso</span>", unsafe_allow_html=True)
-                st.caption("Supabase Cloud API")
             else:
                 st.markdown("**Database:** <span style='color:red;'>Errore</span>", unsafe_allow_html=True)
         
@@ -784,6 +783,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
