@@ -173,7 +173,8 @@ def main():
             st.rerun()
             
         # Footer piccolo
-        st.markdown("<div style='text-align: center; font-size: 0.7rem; color: #888; margin-top: 20px;'>InvestAI • created by Nicola Serra © 2025  · All rights reserved</div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align: center; font-size: 0.7rem; color: #888; margin-top: 20px;'>InvestAI • created by Nicola Serra</div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align: center; font-size: 0.7rem; color: #888; margin-top: 20px;'>© 2025  · All rights reserved</div>", unsafe_allow_html=True)
 
     # --- 1. DASHBOARD ANALISI MERCATO ---
     if page == "📊 Analisi Mercato":
@@ -783,6 +784,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
