@@ -11,17 +11,43 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 
 # --- ASSET LIST COMPLETA ---
 POPULAR_ASSETS = {
+    # --- INDICI GLOBALI ---
     "S&P 500 (USA)": "SPY", "Nasdaq 100 (Tech)": "QQQ", 
-    "Russell 2000 (Small Cap)": "IWM", "All-World": "VWCE.DE",
-    "Emerging Markets": "EEM", "Europe Stoxx 50": "FEZ", "Nikkei 225": "EWJ",
-    "Gold": "GLD", "Silver": "SLV", "Oil": "USO", "Real Estate": "VNQ",
+    "Russell 2000 (Small Cap)": "IWM", "Dow Jones": "DIA",
+    "All-World": "VWCE.DE", "Emerging Markets": "EEM", "Europe Stoxx 50": "FEZ",
+    "China (Large Cap)": "FXI", "China (Internet)": "KWEB", "India": "INDA",
+    "Brazil": "EWZ", "Japan": "EWJ", "UK (FTSE 100)": "EWU", "Germany (DAX)": "EWG",
+    # --- MATERIE PRIME & METALLI ---
+    "Gold": "GLD", "Silver": "SLV", "Oil (WTI)": "USO", 
+    "Natural Gas": "UNG", "Copper (Miners)": "COPX", 
+    "Uranium": "URA", "Agriculture": "DBA",
+    # --- IMMOBILIARE & OBBLIGAZIONI ---
+    "Real Estate (US)": "VNQ", "US Treasury 20Y+": "TLT", 
+    "US Treasury 1-3Y": "SHY", "Corporate Bonds": "LQD",
+    # --- SETTORI USA & MEGATREND ---
+    "Semiconductors": "SMH", "Technology": "XLK", "Healthcare": "XLV", 
+    "Financials": "XLF", "Energy": "XLE", "Materials": "XLB", 
+    "Industrials": "XLI", "Consumer Disc. (Amazon/Tesla)": "XLY", 
+    "Consumer Staples (Coca/Pepsi)": "XLP", "Utilities": "XLU",
+    "Clean Energy": "ICLN", "Cybersecurity": "CIBR", "Robotics & AI": "BOTZ",
+    "Defense & Aerospace": "ITA", "Biotech": "XBI",
+    # --- CRYPTO ---
     "Bitcoin": "BTC-USD", "Ethereum": "ETH-USD", "Solana": "SOL-USD",
-    "Semiconductors": "SMH", "Healthcare": "XLV", "Financials": "XLF", "Clean Energy": "ICLN",
-    "US Treasury 20Y+": "TLT", "US Treasury 1-3Y": "SHY",
+    "Ripple": "XRP-USD", "Binance Coin": "BNB-USD", "Cardano": "ADA-USD",
+    "Dogecoin": "DOGE-USD", "Chainlink": "LINK-USD", "Polkadot": "DOT-USD",
+    # --- BIG TECH (USA) ---
     "Nvidia": "NVDA", "Apple": "AAPL", "Microsoft": "MSFT", "Tesla": "TSLA", 
-    "Amazon": "AMZN", "Meta": "META", "Google": "GOOGL",
-    "Ferrari": "RACE.MI", "Intesa": "ISP.MI", "Enel": "ENEL.MI", 
-    "Eni": "ENI.MI", "Stellantis": "STLAM.MI", "Leonardo": "LDO.MI", "UniCredit": "UCG.MI"
+    "Amazon": "AMZN", "Meta": "META", "Google": "GOOGL", 
+    "Netflix": "NFLX", "AMD": "AMD", "Palantir": "PLTR", "Coinbase": "COIN",
+    # --- BIG EUROPE (GRANOLAS) ---
+    "ASML (Chip)": "ASML", "LVMH (Luxury)": "MC.PA", 
+    "Novo Nordisk (Pharma)": "NVO", "SAP (Software)": "SAP",
+    # --- ITALIA (FTSE MIB) ---
+    "Ferrari": "RACE.MI", "Intesa Sanpaolo": "ISP.MI", "UniCredit": "UCG.MI", 
+    "Enel": "ENEL.MI", "Eni": "ENI.MI", "Stellantis": "STLAM.MI", 
+    "Leonardo": "LDO.MI", "Generali": "G.MI", "Moncler": "MONC.MI", 
+    "Poste Italiane": "PST.MI", "Terna": "TRN.MI", "Snam": "SRG.MI", 
+    "Mediobanca": "MB.MI", "Tenaris": "TEN.MI", "Prysmian": "PRY.MI"
 }
 
 AUTO_SCAN_TICKERS = [v for k, v in POPULAR_ASSETS.items() if v is not None]
@@ -458,6 +484,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
