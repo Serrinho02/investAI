@@ -10,68 +10,54 @@ import time
 from logic import DBManager, get_data_raw, evaluate_strategy_full, generate_portfolio_advice, AUTO_SCAN_TICKERS, POPULAR_ASSETS, validate_ticker
 from bot import run_scheduler, bot 
 
-# --- 1. CONFIGURAZIONE PAGINA (DEVE ESSERE LA PRIMA ISTRUZIONE STREAMLIT) ---
+# --- 1. CONFIGURAZIONE (DEVE ESSERE LA PRIMA RIGA) ---
 st.set_page_config(page_title="InvestAI Ultimate", layout="wide", page_icon="💎")
 
-# --- 2. AVVIO BOT IN BACKGROUND (SINGLETON) ---
-# @st.cache_resource garantisce che questo codice venga eseguito UNA SOLA VOLTA
-# all'avvio del server e mai più, evitando l'errore 409 Conflict.
+# --- 2. AVVIO BOT IN BACKGROUND (SINGLETON PROTETTO) ---
+# Usa la cache per garantire che il bot parta una sola volta per tutto il server
 @st.cache_resource
-def start_bot_background():
-    # A. Thread per lo scheduler (messaggio delle 08:00)
+def start_bot_singleton():
+    # 1. Thread per lo scheduler
     t_sched = threading.Thread(target=run_scheduler, daemon=True)
     t_sched.start()
     
-    # B. Thread per ascoltare i comandi Telegram
+    # 2. Thread per ascoltare i comandi Telegram
     def start_bot_polling():
         try:
-            # Rimuove eventuali blocchi precedenti
+            # Pulisce eventuali conflitti precedenti
             bot.remove_webhook()
             time.sleep(1)
-            # skip_pending=True evita di processare vecchi messaggi all'avvio
+            # Avvia il polling ignorando i vecchi messaggi
             bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
         except Exception as e:
-            print(f"Errore critico bot: {e}")
+            print(f"Errore polling bot: {e}")
             pass
             
     t_bot = threading.Thread(target=start_bot_polling, daemon=True)
     t_bot.start()
-    print("🤖 Bot Telegram avviato in modalità Singleton (Protetto)!")
+    print("🤖 Bot Telegram avviato in modalità Singleton!")
     return True
 
-# Lancia la funzione (Streamlit controllerà la cache e lo farà solo una volta)
-start_bot_background()
+start_bot_singleton()
 
-# --- 3. CSS PER NASCONDERE TUTTO (Menu, Footer, Decorazioni) ---
+# --- 3. STILI CSS COMPLETI ---
 st.markdown("""
-    <style>
-        /* Nasconde il menu hamburger e il pulsante Deploy */
-        #MainMenu {visibility: hidden;}
-        .stDeployButton {display: none;}
-        
-        /* Nasconde il footer testuale in basso */
-        footer {visibility: hidden;}
-        
-        /* Nasconde la decorazione con il logo Streamlit (barchetta rossa) */
-        [data-testid="stDecoration"] {
-            display: none;
-        }
-        
-        /* Nasconde widget di stato */
-        .stStatusWidget {
-            display: none;
-        }
-        
-        /* Nasconde la barra superiore (header) */
-        header {visibility: hidden;}
-        
-        /* Stili personalizzati per l'app */
-        [data-testid="stMetricValue"] { font-size: 1.8rem; }
-        div[data-testid="stExpander"] div[role="button"] p { font-size: 1.1rem; font-weight: 600; }
-        .suggestion-box { padding: 15px; border-radius: 10px; border-left: 5px solid; margin-bottom: 10px; }
-        .tx-row { padding: 10px; border-bottom: 1px solid #333; }
-        .stButton button { width: 100%; }
-    </style>
+<style>
+    /* NASCONDE ELEMENTI STREAMLIT */
+    #MainMenu {visibility: hidden;}
+    .stDeployButton {display: none;}
+    footer {visibility: hidden;}
+    [data-testid="stDecoration"] {display: none;}
+    .stStatusWidget {display: none;}
+    header {visibility: hidden;}
+
+    /* STILI PERSONALIZZATI APP */
+    [data-testid="stMetricValue"] { font-size: 1.8rem; }
+    div[data-testid="stExpander"] div[role="button"] p { font-size: 1.1rem; font-weight: 600; }
+    .suggestion-box { padding: 15px; border-radius: 10px; border-left: 5px solid; margin-bottom: 10px; }
+    .tx-row { padding: 10px; border-bottom: 1px solid #333; }
+    .stButton button { width: 100%; }
+</style>
 """, unsafe_allow_html=True)
 
 db = DBManager()
@@ -102,7 +88,9 @@ def create_modern_chart(df, ticker, trend_label):
     df_plot = df.tail(int(365 * 1.5)).copy()
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
     fig.add_trace(go.Candlestick(x=df_plot.index, open=df_plot['Open'], high=df_plot['High'], low=df_plot['Low'], close=df_plot['Close'], name='Prezzo', increasing_line_color='#26a69a', decreasing_line_color='#ef5350'), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot['SMA_200'], marker_color='#FFD700', name='SMA 200', line=dict(width=2)), row=1, col=1)
+    if 'SMA_200' in df_plot.columns:
+        fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot['SMA_200'], marker_color='#FFD700', name='SMA 200', line=dict(width=2)), row=1, col=1)
+    
     colors_volume = ['#ef5350' if c < o else '#26a69a' for o, c in zip(df_plot['Open'], df_plot['Close'])]
     fig.add_trace(go.Bar(x=df_plot.index, y=df_plot['Volume'], name='Volume', marker_color=colors_volume, opacity=0.5), row=2, col=1)
     
@@ -121,14 +109,14 @@ def main():
             st.title("💎 InvestAI Ultimate")
             tab1, tab2 = st.tabs(["Accedi", "Registrati"])
             with tab1:
-                u = st.text_input("Username", key="l_u")
-                p = st.text_input("Password", type="password", key="l_p")
+                u = st.text_input("User", key="l_u")
+                p = st.text_input("Pass", type="password", key="l_p")
                 if st.button("Login", type="primary", use_container_width=True):
                     if db.login_user(u, p): st.session_state.user = u; st.rerun()
                     else: st.error("Errore credenziali")
             with tab2:
-                nu = st.text_input("Nuovo Username", key="r_u")
-                np = st.text_input("Nuova Password", type="password", key="r_p")
+                nu = st.text_input("Nuovo User", key="r_u")
+                np = st.text_input("Nuova Pass", type="password", key="r_p")
                 if st.button("Crea Account", use_container_width=True):
                     if db.register_user(nu, np): st.success("Creato! Accedi."); 
                     else: st.error("Utente esistente")
@@ -137,25 +125,20 @@ def main():
     user = st.session_state.user
     with st.sidebar:
         st.title(f"👤 {user}")
-        # MENU MODIFICATO: Watchlist rimossa, Impostazioni aggiunta
+        # MENU COMPLETO
         page = st.radio("Menu", ["📊 Analisi Mercato", "💼 Portafoglio", "💡 Consigli", "⚙️ Impostazioni"], label_visibility="collapsed")
         st.divider()
-
-        # --- DEBUG SEZIONE ---
-        st.divider()
-        st.caption("🔧 STATO DATABASE")
-        if db.db_url:
-            st.success("☁️ Mode: POSTGRES (Supabase)")
-            # Mostra parte dell'URL per capire dove punta (senza password)
-            safe_host = db.db_url.split("@")[-1] if "@" in db.db_url else "Url Errato"
-            st.code(f"Target: {safe_host}", language="text")
-        else:
-            st.error("🏠 Mode: SQLITE (Locale)")
-            st.warning("⚠️ I Secrets non vengono letti! I dati non vengono salvati su Supabase.")
         
+        # Debug connessione (utile per verificare Supabase)
+        st.caption("🔧 STATO CONNESSIONE")
+        if db.db_url == "SUPABASE_API_CONNECTION_ACTIVE":
+            st.success("☁️ Cloud: ONLINE (Supabase API)")
+        else:
+            st.warning("⚠️ Stato Sconosciuto")
+
         if st.button("Logout"): st.session_state.user = None; st.rerun()
 
-    # --- 1. DASHBOARD ANALISI MERCATO (Grafica All-in-One) ---
+    # --- 1. DASHBOARD ANALISI MERCATO ---
     if page == "📊 Analisi Mercato":
         st.title("Analisi Mercato")
 
@@ -168,37 +151,37 @@ def main():
                         <li style="margin-bottom: 8px;">
                             💎 <b>OPPORTUNITÀ D'ORO (Golden Entry)</b><br>
                             <i>Setup:</i> Trend Rialzista + Crollo Anomalo (RSI < 30 + Sotto Bollinger).<br>
-                            <i>Logica:</i> Il "Santo Graal" statistico. Un asset fondamentalmente forte (sopra SMA200) è crollato a livelli di ipervenduto estremo, bucando la banda inferiore di Bollinger. È un evento raro che offre il miglior rapporto rischio/rendimento.
+                            <i>Logica:</i> Il "Santo Graal" statistico. Un asset fondamentalmente forte (sopra SMA200) è crollato a livelli di ipervenduto estremo.
                         </li>
                         <li style="margin-bottom: 8px;">
                             🛒 <b>ACQUISTA ORA (Buy the Dip)</b><br>
                             <i>Setup:</i> Trend Rialzista (Prezzo > SMA200) + Ipervenduto.<br>
-                            <i>Logica:</i> Il prezzo è in un trend positivo di fondo ma ha subito un ritracciamento fisiologico. L'algoritmo rileva un ingresso statistico perché l'RSI è scarico (< 40) o il prezzo tocca la <b>Lower Bollinger Band</b> (supporto dinamico).
+                            <i>Logica:</i> Il prezzo è in un trend positivo di fondo ma ha subito un ritracciamento fisiologico.
                         </li>
                         <li style="margin-bottom: 8px;">
                             💰 <b>VENDI PARZIALE (Take Profit)</b><br>
                             <i>Setup:</i> Trend Rialzista + Estensione Eccessiva.<br>
-                            <i>Logica:</i> Il prezzo è "tirato". L'RSI è in zona critica (> 75) oppure il prezzo ha rotto la <b>Upper Bollinger Band</b> mostrando al contempo una divergenza negativa sul <b>MACD</b> (esaurimento della spinta). Si consiglia di liquidare parte della posizione.
+                            <i>Logica:</i> Il prezzo è "tirato". L'RSI è in zona critica (> 75).
                         </li>   
                         <li style="margin-bottom: 8px;">
                             🚀 <b>TREND SOLIDO (Hold)</b><br>
                             <i>Setup:</i> Trend Rialzista + Volatilità Contenuta.<br>
-                            <i>Logica:</i> Il prezzo viaggia sopra la SMA200 senza toccare estremi di volatilità. Gli indicatori sono in equilibrio. È la fase ideale per lasciar correre i profitti ("Let the winners run").
+                            <i>Logica:</i> Il prezzo viaggia sopra la SMA200 senza toccare estremi di volatilità.
                         </li>
                         <li style="margin-bottom: 8px;">
                             ⚠️ <b>TENTATIVO RISCHIOSO (Reversal Trading)</b><br>
                             <i>Setup:</i> Trend Ribassista + Ipervenduto Estremo.<br>
-                            <i>Logica:</i> Operazione contro-trend ad alto rischio. Il prezzo è crollato sotto la SMA200 e ha bucato la banda inferiore di Bollinger con RSI < 30. Si cerca di catturare un "rimbalzo tecnico" (Dead Cat Bounce) per speculazione a breve termine.
+                            <i>Logica:</i> Operazione contro-trend ad alto rischio (Dead Cat Bounce).
                         </li>
                         <li style="margin-bottom: 8px;">
                             ⛔ <b>STAI ALLA LARGA (Strong Bearish)</b><br>
                             <i>Setup:</i> Trend Ribassista + Momentum Negativo.<br>
-                            <i>Logica:</i> Il prezzo è sotto la media a 200 periodi e il MACD conferma che i venditori hanno il controllo. Nessun segnale di inversione: non tentare di "afferrare il coltello che cade".
+                            <i>Logica:</i> Il prezzo è sotto la media a 200 periodi e il MACD conferma che i venditori hanno il controllo.
                         </li>
                         <li style="margin-bottom: 8px;">
                             ✋ <b>ATTENDI (Neutral/Chop)</b><br>
                             <i>Setup:</i> Segnali Conflittuali.<br>
-                            <i>Logica:</i> Il mercato non ha una direzionalità chiara o la volatilità è compressa. Non ci sono vantaggi statistici per operare in questo momento.
+                            <i>Logica:</i> Il mercato non ha una direzionalità chiara.
                         </li>
                     </ul>
                 </div>
@@ -210,16 +193,14 @@ def main():
                 with st.spinner("L'AI sta analizzando tutti gli asset in cerca di occasioni..."):
                     auto_data = get_data(AUTO_SCAN_TICKERS)
                     opportunities = []
-                    golden_found = False # Flag per vedere se abbiamo trovato l'oro
+                    golden_found = False
                     
                     for t in AUTO_SCAN_TICKERS:
                         if t in auto_data:
-                            # --- FIX: Ora estraiamo 11 valori (inclusi risk_pr e risk_pot) ---
+                            # 11 Valori (Completo)
                             tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(auto_data[t])
                             
-                            # Includiamo anche la "OPPORTUNITÀ D'ORO" nei filtri
                             if "ACQUISTA" in act or "VENDI" in act or "RISCHIOSO" in act or "ORO" in act:
-                                # Assegniamo un punteggio di priorità per l'ordinamento
                                 priority = 0
                                 if "ORO" in act: 
                                     priority = 3
@@ -234,24 +215,20 @@ def main():
                                     "priority": priority,
                                     "target": tgt,      
                                     "potential": pot,
-                                    "risk": risk_pr,       # NUOVO
-                                    "risk_pot": risk_pot   # NUOVO
+                                    "risk": risk_pr,
+                                    "risk_pot": risk_pot
                                 })
                     
                     if opportunities:
-                        # Ordina per priorità decrescente (L'ORO apparirà sempre per primo)
                         opportunities = sorted(opportunities, key=lambda x: x['priority'], reverse=True)
 
                         if golden_found:
-                            st.balloons() # EFFETTO VISIVO PER L'OCCASIONE
+                            st.balloons()
                             st.success("💎 TROVATA UN'OPPORTUNITÀ D'ORO! PRESTARE MASSIMA ATTENZIONE.")
 
                         cols_rec = st.columns(3)
                         for idx, opp in enumerate(opportunities):
-                            # Se è oro, mettiamo un bordo speciale
                             border_style = "border: 2px solid #FFD700; box-shadow: 0 0 10px #FFD700;" if "ORO" in opp['action'] else "border-color: #999;"
-                            
-                            # Formattazione colore per il potenziale
                             pot_color = "#006400" if opp['potential'] > 0 else "#8b0000" 
                             pot_str = f"+{opp['potential']:.1f}%" if opp['potential'] > 0 else f"{opp['potential']:.1f}%"
                             
@@ -283,12 +260,8 @@ def main():
         st.divider()
         st.subheader("🔎 Analisi Approfondita Singolo Asset")
         
-        # --- SELEZIONE ASSET (Sostituisce la vecchia Watchlist) ---
-        # 1. Recupera tutti i ticker popolari
         popular_tickers = list(POPULAR_ASSETS.values())
-        # 2. Crea lista ordinata
         all_options = sorted(list(set(popular_tickers)))
-        # 3. Aggiunge l'opzione di ricerca manuale
         all_options.insert(0, "➕ Cerca/Inserisci Ticker Manuale...")
 
         c_sel, c_input = st.columns([3, 1])
@@ -309,13 +282,11 @@ def main():
                 if selected_ticker in single_asset_data:
                     df = single_asset_data[selected_ticker]
                     
-                    # 11 Valori
                     tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(df)
                     
                     k1, k2, k3, k4 = st.columns(4)
                     k1.metric("Prezzo", f"${pr:,.2f}")
                     k2.metric("Target (Upside)", f"${tgt:,.2f}", delta=f"{pot:.1f}%")
-                    # Il rischio è negativo, quindi delta_color="inverse" (rosso se negativo è normale, ma qui vogliamo evidenziarlo)
                     k3.metric("Supporto (Rischio)", f"${risk_pr:,.2f}", delta=f"{risk_pot:.1f}%", delta_color="normal")
                     k4.metric("RSI", f"{rsi:.1f}")
                     
@@ -336,9 +307,7 @@ def main():
             else:
                 if selected_ticker != "➕ Cerca/Inserisci Ticker Manuale...": st.warning(f"Ticker '{selected_ticker}' non trovato.")
 
-    # --- 2. PORTAFOGLIO (Grafica All-in-One con FIX Tabella) ---
-
-   # --- 2. PORTAFOGLIO (Aggiornato con Target Price e Previsioni) ---
+    # --- 2. PORTAFOGLIO ---
     elif page == "💼 Portafoglio":
         if 'tx_page' not in st.session_state: st.session_state.tx_page = 0
         
@@ -351,19 +320,13 @@ def main():
         
         pf, history = db.get_portfolio_summary(user)
         
-        # Calcolo valore totale portfolio per percentuali
-        tot_val_portfolio = 0 
-        if pf:
-            tickers = list(pf.keys())
-            market_data = get_data(tickers)
-            for t in tickers:
-                cur = market_data[t]['Close'].iloc[-1] if t in market_data else pf[t]['avg_price']
-                tot_val_portfolio += pf[t]['qty'] * cur
-
         if pf:
             tickers = list(pf.keys())
             tot_val, tot_cost = 0, 0
             pie_data = []
+            
+            # Scarica dati mercato
+            market_data = get_data(tickers)
             
             for t in tickers:
                 cur = market_data[t]['Close'].iloc[-1] if t in market_data else pf[t]['avg_price']
@@ -403,6 +366,7 @@ def main():
                     </ul>
                 </div>
                 """, unsafe_allow_html=True)
+            
             valid_pf = [item for item in pf.items() if item[0] in market_data]
             sorted_pf = sorted(valid_pf, key=lambda x: x[1]['pnl_pct'])
             
@@ -410,14 +374,10 @@ def main():
                 cols_adv = st.columns(3)
                 for i, (sym, dat) in enumerate(sorted_pf):
                     tit, adv, col = generate_portfolio_advice(market_data[sym], dat['avg_price'], dat['cur_price'])
-                    
-                    # 11 Valori (Prendiamo tgt, pot, risk_pr, risk_pot)
                     _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(market_data[sym])
                     
                     val_attuale_asset = dat['qty'] * dat['cur_price']
                     percentuale_allocazione = (val_attuale_asset / tot_val_portfolio * 100) if tot_val_portfolio > 0 else 0
-                    
-                    pot_color = "#006400" if pot > 0 else "#8b0000"
                     
                     with cols_adv[i % 3]:
                         st.markdown(f"""
@@ -575,6 +535,9 @@ def main():
         with st.spinner("Analisi incrociata Portafoglio vs Mercato..."):
             pf, _ = db.get_portfolio_summary(user)
             owned_tickers = list(pf.keys())
+            
+            # --- FIX CRITICO: Uniamo i ticker posseduti con quelli da scansionare ---
+            # Questo assicura che get_data scarichi ANCHE i tuoi asset
             all_potential_tickers = list(set(owned_tickers + AUTO_SCAN_TICKERS))
             market_data = get_data(all_potential_tickers)
 
@@ -582,7 +545,7 @@ def main():
             actions_buy_more = []
             actions_new_entry = []
 
-            # 1. ANALISI ASSET POSSEDUTI (Usa generate_portfolio_advice - 3 valori)
+            # 1. ANALISI ASSET POSSEDUTI
             for t in owned_tickers:
                 if t in market_data:
                     dat = pf[t]
@@ -591,17 +554,15 @@ def main():
                     pnl_val = val_pos - dat['total_cost']
                     dat['pnl_pct'] = (pnl_val / dat['total_cost'] * 100) if dat['total_cost'] > 0 else 0
                     
-                    # Questa funzione non è stata modificata, ritorna 3 valori
                     tit, adv, col = generate_portfolio_advice(market_data[t], dat['avg_price'], cur_price)
                     
                     item = {"ticker": t, "title": tit, "desc": adv, "color": col, "pnl": dat['pnl_pct']}
                     if "VENDI" in tit or "VALUTA" in tit: actions_sell.append(item)
                     elif "ACQUISTA" in tit or "PAC BUY" in tit: actions_buy_more.append(item)
 
-            # 2. ANALISI NUOVE OPPORTUNITÀ (Usa evaluate_strategy_full - 9 valori)
+            # 2. ANALISI NUOVE OPPORTUNITÀ
             for t in AUTO_SCAN_TICKERS:
                 if t not in owned_tickers and t in market_data:
-                    # FIX: 11 Valori
                     tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(market_data[t])
                     
                     if "ACQUISTA" in act or "ORO" in act:
@@ -609,11 +570,10 @@ def main():
                             "ticker": t, "title": act, "desc": reason, 
                             "color": col, "price": pr, "rsi": rsi,
                             "target": tgt, "potential": pot,
-                            "risk": risk_pr, "risk_pot": risk_pot # Nuovi campi
+                            "risk": risk_pr, "risk_pot": risk_pot
                         })
 
             # --- VISUALIZZAZIONE ---
-            
             if actions_sell:
                 st.subheader("💰 Da Monetizzare"); cols = st.columns(3)
                 for i, item in enumerate(actions_sell):
@@ -624,9 +584,7 @@ def main():
             if actions_new_entry:
                 st.subheader("🚀 Nuove Opportunità"); cols = st.columns(3)
                 for i, item in enumerate(actions_new_entry):
-                    pot_color = "#006400"
                     border_style = "border: 2px solid #FFD700; box-shadow: 0 0 10px #FFD700;" if "ORO" in item['title'] else "border-color: #00cc00;"
-
                     with cols[i%3]: 
                         st.markdown(f"""
                         <div class="suggestion-box" style="background-color:{item['color']}; {border_style}">
@@ -657,6 +615,7 @@ def main():
                     with cols[i%3]: st.markdown(f"""<div class="suggestion-box" style="background-color:{item['color']}; border-color:#00cc00;"><h4>{item['ticker']}</h4><h3 style="color:#006600; margin:5px 0;">{item['title']}</h3><p>{item['desc']}</p><p style="font-weight:bold;">Tuo P&L: {item['pnl']:.1f}%</p></div>""", unsafe_allow_html=True)
             
             if not actions_sell and not actions_new_entry and not actions_buy_more: st.success("Tutto tranquillo! Il tuo portafoglio è stabile.")
+
     # --- 4. IMPOSTAZIONI ---
     elif page == "⚙️ Impostazioni":
         st.title("Impostazioni Notifiche")
@@ -685,8 +644,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
