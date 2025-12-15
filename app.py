@@ -247,8 +247,10 @@ def main():
                     
                     for t in AUTO_SCAN_TICKERS:
                         if t in auto_data:
-                            # 11 Valori
-                            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(auto_data[t])
+                            # 15 Valori (aggiunti: success_rate, pnl30, pnl60, pnl90)
+                            tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, success_rate, pnl30, pnl60, pnl90 = evaluate_strategy_full(auto_data[t])
+                            # Prepara backtest_results per l'uso nel dizionario
+                            backtest_results = (success_rate, pnl30, pnl60, pnl90, 0) # total_signals non è necessario qui, ma manteniamo la struttura
                             
                             if "ACQUISTA" in act or "VENDI" in act or "RISCHIOSO" in act or "ORO" in act:
                                 priority = 0
@@ -258,6 +260,7 @@ def main():
                                 elif "ACQUISTA" in act: priority = 2
                                 elif "VENDI" in act: priority = 1
                                 
+                                total_signals = backtest_results[4] # Ottieni il numero di segnali
                                 opportunities.append({
                                     "ticker": t, "trend": tl, "action": act, 
                                     "color": col, "price": pr, "rsi": rsi, 
@@ -266,7 +269,12 @@ def main():
                                     "target": tgt,      
                                     "potential": pot,
                                     "risk": risk_pr,
-                                    "risk_pot": risk_pot
+                                    "risk_pot": risk_pot,
+                                    # NUOVI VALORI DI BACKTEST
+                                    "success_rate": success_rate, 
+                                    "pnl30": pnl30, 
+                                    "pnl60": pnl60,
+                                    "total_signals": total_signals 
                                 })
                     
                     if opportunities:
@@ -278,13 +286,41 @@ def main():
 
                         cols_rec = st.columns(3)
                         for idx, opp in enumerate(opportunities):
+                            # Estrai le nuove variabili dal dizionario opp
+                            success_rate = opp.get("success_rate", 0)
+                            pnl30 = opp.get("pnl30", 0)
+                            pnl60 = opp.get("pnl60", 0)
+                            total_signals = opp.get("total_signals", 0)
+
                             border_style = "border: 2px solid #FFD700; box-shadow: 0 0 5px #FFD700;" if "ORO" in opp['action'] else "border: 1px solid #8bc34a;"
                             pot_color = "#006400" if opp['potential'] > 0 else "#8b0000"
                             pot_str = f"+{opp['potential']:.1f}%"
                             
-                            # Recupera nome completo
                             asset_name = get_asset_name(opp['ticker'])
                             
+                            # Logica per mostrare il backtest solo se il segnale è BUY/ORO
+                            show_backtest = "ACQUISTA" in opp['action'] or "ORO" in opp['action']
+                            
+                            # Contenuto Backtest
+                            backtest_html = ""
+                            if show_backtest and total_signals > 0:
+                                backtest_html = f"""
+                                <div style="margin-top:10px; padding: 5px 0; border-top: 1px solid rgba(0,0,0,0.1); font-size: 0.8rem;">
+                                    <span style="font-weight: bold; color: {'green' if success_rate >= 55 else 'orange'};">✅ Storico (90D): {success_rate:.0f}% successi</span>
+                                    <span style="font-size:0.75rem; color:#888;"> ({total_signals} segnali)</span>
+                                    <div style="display:flex; justify-content:space-between; margin-top:2px; font-size:0.8rem;">
+                                        <span>PnL Medio 30D: <b style="color:{'green' if pnl30 > 0 else 'red'};">{pnl30:.1f}%</b></span>
+                                        <span>PnL Medio 60D: <b style="color:{'green' if pnl60 > 0 else 'red'};">{pnl60:.1f}%</b></span>
+                                    </div>
+                                </div>
+                                """
+                            elif show_backtest:
+                                backtest_html = f"""
+                                <div style="margin-top:10px; padding: 5px 0; border-top: 1px solid rgba(0,0,0,0.1); font-size: 0.8rem; color: #888;">
+                                    Storico non disponibile per backtest.
+                                </div>
+                                """
+                                
                             with cols_rec[idx % 3]: 
                                 st.markdown(f"""
                                 <div class="suggestion-box" style="background-color:{opp['color']}; {border_style}">
@@ -296,7 +332,10 @@ def main():
                                         <span style="font-weight:bold; color:{pot_color};">{pot_str}</span>
                                     </div>
                                     <h3 style="color:#004d40; margin:5px 0;">{opp['action']}</h3>
-                                    <p style="font-size:0.9rem;">{opp['reason']}</p> 
+                                    <p style="font-size:0.9rem;">{opp['reason']}</p>
+                                    
+                                    {backtest_html}
+                                    
                                     <div style="margin-top:8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top:5px;">
                                         <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
                                             <span>Target: <b>${opp['target']:.2f}</b></span>
@@ -336,7 +375,7 @@ def main():
                 if selected_ticker in single_asset_data:
                     df = single_asset_data[selected_ticker]
                     
-                    tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(df)
+                    tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, success_rate, pnl30, pnl60, pnl90 = evaluate_strategy_full(df)
                     
                     k1, k2, k3, k4 = st.columns(4)
                     k1.metric("Prezzo", f"${pr:,.2f}")
@@ -825,6 +864,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
