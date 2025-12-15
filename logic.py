@@ -77,19 +77,24 @@ class DBManager:
         try:
             res = self.client.table("users").select("tg_chat_id").eq("username", user).execute()
             if res.data and len(res.data) > 0:
-                return res.data[0].get("tg_chat_id", "")
+                raw_id = res.data[0].get("tg_chat_id", "")
+                # Pulisce l'ID per mostrarlo nel sito
+                return raw_id.replace("STOP_", "")
             return ""
         except: return ""
 
     def get_users_with_telegram(self):
         try:
             res = self.client.table("users").select("username, tg_chat_id").neq("tg_chat_id", "").execute()
-            return [(r['username'], r['tg_chat_id']) for r in res.data]
+            # Filtra ed esclude chi inizia con STOP_
+            return [(r['username'], r['tg_chat_id']) for r in res.data if not r['tg_chat_id'].startswith("STOP_")]
         except: return []
 
     def get_user_by_chat_id(self, chat_id):
         try:
-            res = self.client.table("users").select("username").eq("tg_chat_id", str(chat_id)).execute()
+            # Cerca se l'utente ha l'ID normale OPPURE l'ID con STOP_
+            possible_ids = [str(chat_id), f"STOP_{chat_id}"]
+            res = self.client.table("users").select("username").in_("tg_chat_id", possible_ids).execute()
             if res.data and len(res.data) > 0:
                 return res.data[0]['username']
             return None
@@ -431,6 +436,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
