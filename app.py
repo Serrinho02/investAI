@@ -237,7 +237,7 @@ def main():
                         </tr>
                         <tr>
                             <td style="border: 1px solid #ddd; padding: 6px; background-color: #fff4cc;"><b>40–65 / 100 (MEDIO)</b></td>
-                            <td style="border: 1px solid #ddd; padding: 6px;">Segnale valido, ma con potenziale debole nel medio termine o rischio elevato (Es: NVDA). Richiede cautela.</td>
+                            <td style="border: 1px solid #ddd; padding: 6px;">Segnale valido, ma con potenziale debole nel medio termine o rischio elevato. Richiede cautela.</td>
                         </tr>
                         <tr>
                             <td style="border: 1px solid #ddd; padding: 6px; background-color: #fcfcfc;"><b>< 40 / 100 (BASSO)</b></td>
@@ -257,7 +257,7 @@ def main():
                             <b>Lungo Termine (90G):</b> Se il Win Rate e il PnL Medio a 90 Giorni sono positivi, il segnale è robusto per l'<b>Accumulo e l'Investimento (Buy & Hold)</b>.
                         </li>
                         <li style="margin-bottom: 8px; color: #b71c1c;">
-                            <b>⚠️ Attenzione:</b> Se il Win Rate a 90 giorni è <b>0%</b> (Es: NVDA), il segnale è buono solo per il rimbalzo e <b>non deve essere mantenuto a lungo</b>.
+                            <b>⚠️ Attenzione:</b> Se il Win Rate a 90 giorni è <b>0%</b>, il segnale è buono solo per il rimbalzo e <b>non deve essere mantenuto a lungo</b>.
                         </li>
                     </ul>
                     <h4 style="margin-top: 20px; color: #222;">🔬 I 7 Scenari Tecnici</h4>
@@ -990,6 +990,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
