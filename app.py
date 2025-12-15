@@ -690,19 +690,27 @@ def main():
                 st.subheader("🚀 Nuove Opportunità (Mercato)")
                 cols = st.columns(3)
                 for i, item in enumerate(actions_new_entry):
-                    border_style = "border: 2px solid #FFD700; box-shadow: 0 0 5px #FFD700;" if "ORO" in item['title'] else "border: 1px solid #ccc;"
+                    # Bordo speciale per "ORO", altrimenti bordo standard grigio/verde
+                    border_style = "border: 2px solid #FFD700; box-shadow: 0 0 5px #FFD700;" if "ORO" in item['title'] else "border: 1px solid #8bc34a;"
+                    
                     with cols[i%3]: 
                         st.markdown(f"""
                         <div class="suggestion-box" style="background-color:{item['color']}; {border_style}">
                             <div style="display:flex; justify-content:space-between;">
                                 <h4>{item['ticker']}</h4>
-                                <span style="font-size:0.8rem; background:rgba(255,255,255,0.8); padding:2px;">RSI: {item['rsi']:.0f}</span>
+                                <span style="font-weight:bold; color:#006400;">+{item['potential']:.1f}%</span>
                             </div>
                             <h3 style="color:#004d40; margin:5px 0;">{item['title']}</h3>
                             <p style="font-size:0.9rem;">{item['desc']}</p>
-                            <div style="margin-top:8px; font-size:0.8rem; display:flex; justify-content:space-between;">
-                                <span style="color:green;"><b>Target: ${item['target']:.1f}</b></span>
-                                <span style="color:#d32f2f;">Risk: {item['risk_pot']:.1f}%</span>
+                            
+                            <div style="margin-top:8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top:5px;">
+                                <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                                    <span>Target: <b>${item['target']:.1f}</b></span>
+                                    <span style="color:#b71c1c;">Risk: <b>{item['risk_pot']:.1f}%</b></span>
+                                </div>
+                                <div style="text-align:right; font-size:0.8rem; margin-top:4px; color:#555;">
+                                    Prezzo: ${item['price']:.2f} | RSI: {item['rsi']:.0f}
+                                </div>
                             </div>
                         </div>""", unsafe_allow_html=True)
 
@@ -737,5 +745,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
