@@ -14,7 +14,6 @@ from bot import run_scheduler, bot
 st.set_page_config(page_title="InvestAI Ultimate", layout="wide", page_icon="💎")
 
 # --- 2. AVVIO BOT IN BACKGROUND (SINGLETON PROTETTO) ---
-# Usa la cache per garantire che il bot parta una sola volta per tutto il server
 @st.cache_resource
 def start_bot_singleton():
     # 1. Thread per lo scheduler
@@ -24,10 +23,8 @@ def start_bot_singleton():
     # 2. Thread per ascoltare i comandi Telegram
     def start_bot_polling():
         try:
-            # Pulisce eventuali conflitti precedenti
             bot.remove_webhook()
             time.sleep(1)
-            # Avvia il polling ignorando i vecchi messaggi
             bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
         except Exception as e:
             print(f"Errore polling bot: {e}")
@@ -129,7 +126,7 @@ def main():
         page = st.radio("Menu", ["📊 Analisi Mercato", "💼 Portafoglio", "💡 Consigli", "⚙️ Impostazioni"], label_visibility="collapsed")
         st.divider()
         
-        # Debug connessione (utile per verificare Supabase)
+        # Debug connessione
         st.caption("🔧 STATO CONNESSIONE")
         if db.db_url == "SUPABASE_API_CONNECTION_ACTIVE":
             st.success("☁️ Cloud: ONLINE (Supabase API)")
@@ -197,7 +194,7 @@ def main():
                     
                     for t in AUTO_SCAN_TICKERS:
                         if t in auto_data:
-                            # 11 Valori (Completo)
+                            # 11 Valori
                             tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(auto_data[t])
                             
                             if "ACQUISTA" in act or "VENDI" in act or "RISCHIOSO" in act or "ORO" in act:
@@ -320,13 +317,14 @@ def main():
         
         pf, history = db.get_portfolio_summary(user)
         
+        # --- CALCOLO TOTALE PORTAFOGLIO ---
+        tot_val = 0 # Variabile fondamentale, usata dopo
         if pf:
             tickers = list(pf.keys())
-            tot_val, tot_cost = 0, 0
-            pie_data = []
-            
-            # Scarica dati mercato
             market_data = get_data(tickers)
+            
+            pie_data = []
+            tot_cost = 0
             
             for t in tickers:
                 cur = market_data[t]['Close'].iloc[-1] if t in market_data else pf[t]['avg_price']
@@ -334,7 +332,8 @@ def main():
                 pf[t]['cur_price'] = cur
                 pf[t]['pnl'] = val - pf[t]['total_cost'] 
                 pf[t]['pnl_pct'] = (pf[t]['pnl'] / pf[t]['total_cost'] * 100) if pf[t]['total_cost'] > 0 else 0
-                tot_val += val; tot_cost += pf[t]['total_cost']
+                tot_val += val
+                tot_cost += pf[t]['total_cost']
                 pie_data.append({"Label": t, "Value": val})
             
             pnl_tot = tot_val - tot_cost
@@ -377,7 +376,8 @@ def main():
                     _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot = evaluate_strategy_full(market_data[sym])
                     
                     val_attuale_asset = dat['qty'] * dat['cur_price']
-                    percentuale_allocazione = (val_attuale_asset / tot_val_portfolio * 100) if tot_val_portfolio > 0 else 0
+                    # FIX: Uso tot_val (calcolato sopra) invece di tot_val_portfolio
+                    percentuale_allocazione = (val_attuale_asset / tot_val * 100) if tot_val > 0 else 0
                     
                     with cols_adv[i % 3]:
                         st.markdown(f"""
