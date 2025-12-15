@@ -702,7 +702,6 @@ def main():
                             </div>
                             <h3 style="color:#004d40; margin:5px 0;">{item['title']}</h3>
                             <p style="font-size:0.9rem;">{item['desc']}</p>
-                            
                             <div style="margin-top:8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top:5px;">
                                 <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
                                     <span>Target: <b>${item['target']:.1f}</b></span>
@@ -745,6 +744,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
