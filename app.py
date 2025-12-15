@@ -459,29 +459,38 @@ def main():
                     
                     with cols_adv[i % 3]:
                         st.markdown(f"""
-                        <div class="suggestion-box" style="background-color:{col}; border: 1px solid #bbb; min-height: 280px;">
-                            <div style="display:flex; justify-content:space-between;"><strong>{sym}</strong><span style="color:{'green' if dat['pnl_pct']>=0 else 'red'}; font-weight:bold;">{dat['pnl_pct']:.1f}%</span></div>
-                            <h3 style="margin:5px 0; color: #222;">{tit}</h3>
-                            <p style="font-size:0.9rem; margin-bottom: 5px;">{adv}</p>
-                            <hr style="margin: 5px 0; border-color: rgba(0,0,0,0.1);">
-                            <div style="font-size: 0.8rem; display: flex; justify-content: space-between; margin-bottom: 5px;">
-                                <span>Prezzo: €{dat['cur_price']:.2f}</span>
-                                <span>Tot: <b>€{val_attuale_asset:,.0f}</b></span>
-                            </div>
-                            <div style="font-size: 0.8rem; text-align: right; margin-bottom: 10px;">Allocazione: <b>{percentuale_allocazione:.1f}%</b></div>
-                            <div style="padding: 8px; background-color: rgba(255,255,255,0.6); border-radius: 6px; border: 1px dashed #666;">
-                                <div style="font-size: 0.7rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Scenari Tecnici</div>
-                                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
-                                    <span style="color: #006400;">✅ <b>+{pot:.1f}%</b></span>
-                                    <span style="color: #333;">|</span>
-                                    <span style="color: #b30000;">🔻 <b>{risk_pot:.1f}%</b></span>
+                            <div class="suggestion-box" style="background-color:{col}; border: 1px solid #bbb; min-height: 280px;">
+                                <div style="display:flex; justify-content:space-between;"><strong>{sym}</strong><span style="color:{'green' if dat['pnl_pct']>=0 else 'red'}; font-weight:bold;">{dat['pnl_pct']:.1f}%</span></div>
+                                <h3 style="margin:5px 0; color: #222;">{tit}</h3>
+                                <p style="font-size:0.9rem; margin-bottom: 5px;">{adv}</p>
+                                <hr style="margin: 5px 0; border-color: rgba(0,0,0,0.1);">
+                                <div style="font-size: 0.8rem; display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                    <span>Prezzo: €{dat['cur_price']:.2f}</span>
+                                    <span>Tot: <b>€{val_attuale_asset:,.0f}</b></span>
                                 </div>
-                                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #444; margin-top:2px;">
-                                    <span>Tgt: ${tgt:.0f}</span>
-                                    <span>Risk: ${risk_pr:.0f}</span>
+                                <div style="font-size: 0.8rem; text-align: right; margin-bottom: 10px;">Allocazione: <b>{percentuale_allocazione:.1f}%</b></div>
+                                <div style="padding: 8px; background-color: rgba(255,255,255,0.8); border-radius: 6px; border: 1px dashed #666; margin-bottom: 8px;">
+                                    <div style="font-size: 0.7rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Probabilità Storica (Buy Signal)</div>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                                        <span style="font-weight:bold;">30G: {w30:.0f}% <span style="color:{'green' if p30>=0 else 'red'};">({p30:.1f}%)</span></span>
+                                        <span style="font-weight:bold;">60G: {w60:.0f}% <span style="color:{'green' if p60>=0 else 'red'};">({p60:.1f}%)</span></span>
+                                        <span style="font-weight:bold;">90G: {w90:.0f}% <span style="color:{'green' if p90>=0 else 'red'};">({p90:.1f}%)</span></span>
+                                    </div>
+                                    <div style="text-align: center; font-size: 0.7rem; color: #777;">(Win Rate % / PnL Medio %)</div>
                                 </div>
-                            </div>
-                        </div>""", unsafe_allow_html=True)
+                                <div style="padding: 8px; background-color: rgba(255,255,255,0.6); border-radius: 6px; border: 1px dashed #666;">
+                                    <div style="font-size: 0.7rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Scenari Tecnici</div>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                                        <span style="color: #006400;">✅ <b>+{pot:.1f}%</b></span>
+                                        <span style="color: #333;">|</span>
+                                        <span style="color: #b30000;">🔻 <b>{risk_pot:.1f}%</b></span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #444; margin-top:2px;">
+                                        <span>Tgt: ${tgt:.0f}</span>
+                                        <span>Risk: ${risk_pr:.0f}</span>
+                                    </div>
+                                </div>
+                            </div>""", unsafe_allow_html=True)
 
             st.divider()
             c_pie, c_det = st.columns([1, 2])
@@ -895,29 +904,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
