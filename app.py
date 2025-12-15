@@ -288,30 +288,36 @@ def main():
                             
                             with cols_rec[idx % 3]: 
                                 st.markdown(f"""
-                                <div class="suggestion-box" style="background-color:{opp['color']}; {border_style}">
-                                    <div style="display:flex; justify-content:space-between;">
-                                        <div>
-                                            <h4 style="margin:0;">{opp['ticker']}</h4>
-                                            <div style="font-size:0.75rem; color:#666; margin-bottom:4px;">{asset_name}</div>
+                                    <div class="suggestion-box" style="background-color:{opp['color']}; {border_style}">
+                                        <div style="display:flex; justify-content:space-between;">
+                                            <div>
+                                                <h4 style="margin:0;">{opp['ticker']}</h4>
+                                                <div style="font-size:0.75rem; color:#666; margin-bottom:4px;">{asset_name}</div>
+                                            </div>
+                                            <span style="font-weight:bold; color:{pot_color};">{pot_str}</span>
                                         </div>
-                                        <span style="font-weight:bold; color:{pot_color};">{pot_str}</span>
-                                    </div>
-                                    <h3 style="color:#004d40; margin:5px 0;">{opp['action']}</h3>
-                                    <p style="font-size:0.9rem;">{opp['reason']}</p> 
-                                    <div style="margin-top:10px; border-top: 1px dashed rgba(0,0,0,0.3); padding-top:5px; font-size:0.85rem; color:#555;">
-                                        <strong style="color:#000;">Probabilità Storica (30g):</strong> <span style="font-weight:bold; color:green;">{opp['w30']:.0f}%</span> (PnL M: <span style="font-weight:bold; color:{'green' if opp['p30']>=0 else 'red'};">{opp['p30']:.1f}%</span>)
-                                    </div>
-                                    <div style="margin-top:8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top:5px;">
-                                        <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
-                                            <span>Target: <b>${opp['target']:.2f}</b></span>
-                                            <span style="color:#b71c1c;">Risk: <b>{opp['risk_pot']:.1f}%</b></span>
+                                        <h3 style="color:#004d40; margin:5px 0;">{opp['action']}</h3>
+                                        <p style="font-size:0.9rem;">{opp['reason']}</p> 
+                                        <div style="margin-top:10px; border-top: 1px dashed rgba(0,0,0,0.3); padding-top:5px; font-size:0.8rem; color:#555;">
+                                            <strong style="color:#000; font-size: 0.9rem;">Probabilità Storica (Buy Signal):</strong>
+                                            <div style="display:flex; justify-content:space-between; margin-top: 5px;">
+                                                <span style="font-weight:bold;">30G: {opp['w30']:.0f}% <span style="color:{'green' if opp['p30']>=0 else 'red'};">({opp['p30']:.1f}%)</span></span>
+                                                <span style="font-weight:bold;">60G: {opp['w60']:.0f}% <span style="color:{'green' if opp['p60']>=0 else 'red'};">({opp['p60']:.1f}%)</span></span>
+                                                <span style="font-weight:bold;">90G: {opp['w90']:.0f}% <span style="color:{'green' if opp['p90']>=0 else 'red'};">({opp['p90']:.1f}%)</span></span>
+                                            </div>
+                                            <div style="text-align: right; font-size: 0.7rem; color: #777;">(Win Rate % / PnL Medio %)</div>
                                         </div>
-                                        <div style="text-align:right; font-size:0.8rem; margin-top:4px; color:#555;">
-                                            Prezzo: ${opp['price']:.2f} | RSI: {opp['rsi']:.0f}
+                                        <div style="margin-top:8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top:5px;">
+                                            <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                                                <span>Target: <b>${opp['target']:.2f}</b></span>
+                                                <span style="color:#b71c1c;">Risk: <b>{opp['risk_pot']:.1f}%</b></span>
+                                            </div>
+                                            <div style="text-align:right; font-size:0.8rem; margin-top:4px; color:#555;">
+                                                Prezzo: ${opp['price']:.2f} | RSI: {opp['rsi']:.0f}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                """, unsafe_allow_html=True)
+                                    """, unsafe_allow_html=True)
                     else:
                         st.info("Al momento il mercato è piatto. Nessun segnale forte rilevato.")
 
@@ -854,6 +860,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
