@@ -768,14 +768,29 @@ def main():
                     border_style = "border: 2px solid #FFD700; box-shadow: 0 0 5px #FFD700;" if "ORO" in item['title'] else "border: 1px solid #8bc34a;"
                     
                     with cols[i%3]: 
-                        st.markdown(f"""
+                     st.markdown(f"""
                         <div class="suggestion-box" style="background-color:{item['color']}; {border_style}">
                             <div style="display:flex; justify-content:space-between;">
-                                <h4>{item['ticker']}</h4>
+                                <div>
+                                    <h4>{item['ticker']}</h4>
+                                    <div style="font-size:0.75rem; color:#666; margin-bottom:4px;">Probabilità Storica (30d): 
+                                       <span style="font-weight:bold; color:green;">{item['w30']:.0f}%</span>
+                                    </div>
+                                </div>
                                 <span style="font-weight:bold; color:#006400;">+{item['potential']:.1f}%</span>
                             </div>
                             <h3 style="color:#004d40; margin:5px 0;">{item['title']}</h3>
-                            <p style="font-size:0.9rem;">{item['desc']}</p>
+                            <p style="font-size:0.9rem;">{item['desc']}</p> 
+                            <div style="margin-top:8px; border-top: 1px dashed rgba(0,0,0,0.3); padding-top:5px; font-size:0.8rem; color:#555;">
+                                <div style="display:flex; justify-content:space-between; font-weight:bold;">
+                                    <span>30 Giorni: {item['w30']:.0f}% ({item['p30']:.1f}%)</span>
+                                    <span>60 Giorni: {item['w60']:.0f}% ({item['p60']:.1f}%)</span>
+                                    <span>90 Giorni: {item['w90']:.0f}% ({item['p90']:.1f}%)</span>
+                                </div>
+                                <div style="text-align: center; margin-top: 5px; font-size: 0.75rem; color: #777;">
+                                    (Win Rate % / PnL Medio %)
+                                </div>
+                            </div>
                             <div style="margin-top:8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top:5px;">
                                 <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
                                     <span>Target: <b>${item['target']:.1f}</b></span>
@@ -842,6 +857,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
