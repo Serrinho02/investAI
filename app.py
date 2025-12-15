@@ -764,7 +764,7 @@ def main():
                 for i, item in enumerate(actions_sell):
                     asset_name = get_asset_name(item['ticker'])
                     if item['ticker'] in market_data:
-                        _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90 = evaluate_strategy_full(market_data[item['ticker']]) 
+                        _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90, conf = evaluate_strategy_full(market_data[item['ticker']]) 
                     else: # Fallback se i dati sono stati persi
                         tgt, pot, risk_pr, risk_pot = 0, 0, 0, 0
                         w30, p30, w60, p60, w90, p90 = 0, 0, 0, 0, 0, 0
@@ -955,6 +955,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
