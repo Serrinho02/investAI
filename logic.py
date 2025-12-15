@@ -368,15 +368,58 @@ def process_df(df, data, t):
     except Exception as e:
         logger.warning(f"Errore calcolo indicatori per {t}: {e}")
 
+
+# --- NUOVA FUNZIONE: BACKTESTING E PROBABILITÀ ---
+def run_backtest(df, days_list=[30, 60, 90]):
+    """
+    Esegue un backtest storico sulla strategia d'acquisto 'Dip' e 'Golden'.
+    Ritorna: Win Rate per [30, 60, 90] giorni e PnL medio per [30, 60, 90] giorni.
+    """
+    df_copy = df.copy()
+    # 1. Identifica i segnali di acquisto ('Buy the Dip' o 'Golden Entry')
+    # Questi sono segnali in cui: Trend è rialzista (Close > SMA200) E (RSI < 40 OPPURE Prezzo vicino a BBL)
+    df_copy['Signal'] = ((df_copy['Close'] > df_copy['SMA_200']) & 
+                         ((df_copy['RSI'] < 40) | (df_copy['Close'] <= df_copy['BBL'] * 1.01)))
+    entry_dates = df_copy[df_copy['Signal']].index.tolist()
+    if not entry_dates:
+        return 0, 0, 0, 0, 0, 0
+    total_signals = len(entry_dates)
+    results = {days: {"wins": 0, "pnl_sum": 0.0} for days in days_list}
+    for entry_date in entry_dates:
+        entry_price = df_copy.loc[entry_date, 'Close']
+        for days in days_list:
+            # Trova la data di uscita (uscita = n giorni lavorativi dopo)
+            # Uso shift(days) per trovare il prezzo n giorni "dopo"
+            exit_idx = df_copy.index.get_loc(entry_date) + days
+            if exit_idx < len(df_copy):
+                exit_price = df_copy.iloc[exit_idx]['Close']
+                pnl = (exit_price - entry_price) / entry_price
+                results[days]["pnl_sum"] += pnl
+                if pnl > 0:
+                    results[days]["wins"] += 1
+    # Calcola le metriche finali
+    win_rates = [0.0] * len(days_list)
+    avg_pnls = [0.0] * len(days_list)
+    for i, days in enumerate(days_list):
+        if total_signals > 0:
+            win_rates[i] = (results[days]["wins"] / total_signals) * 100
+            avg_pnls[i] = (results[days]["pnl_sum"] / total_signals) * 100
+    # Ritorna: Win_30, PnL_30, Win_60, PnL_60, Win_90, PnL_90
+    return win_rates[0], avg_pnls[0], win_rates[1], avg_pnls[1], win_rates[2], avg_pnls[2]
+
+
+
 # --- STRATEGIA DI SCANSIONE ---
 def evaluate_strategy_full(df):
     required_cols = ['SMA_200', 'MACD', 'MACD_SIGNAL', 'BBL', 'BBU', 'RSI', 'ATR']
     for col in required_cols:
         if col not in df.columns:
-            return "N/A", "Dati insufficienti", "#eee", 0, 50, 0, "Mancano indicatori", 0, 0, 0, 0
+            # Inseriamo 6 zeri per i nuovi valori (backtest)
+            return "N/A", "Dati insufficienti", "#eee", 0, 50, 0, "Mancano indicatori", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
     if df.empty: 
-        return "N/A", "Dati insufficienti", "#eee", 0, 50, 0, "", 0, 0, 0, 0
+        # Inseriamo 6 zeri per i nuovi valori (backtest)
+        return "N/A", "Dati insufficienti", "#eee", 0, 50, 0, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     
     try:
         last_close = df['Close'].iloc[-1]
@@ -403,6 +446,13 @@ def evaluate_strategy_full(df):
 
         technical_risk = min(last_bbl, last_close - (2 * last_atr))
         potential_downside = ((technical_risk - last_close) / last_close) * 100
+
+        try:
+            # Ritorna: Win30, PnL30, Win60, PnL60, Win90, PnL90
+            w30, p30, w60, p60, w90, p90 = run_backtest(df) 
+        except Exception as e:
+            logger.error(f"Errore calcolo backtest: {e}")
+            w30, p30, w60, p60, w90, p90 = 0, 0, 0, 0, 0, 0
         
         if is_bullish:
             if last_rsi < 30 and last_close <= last_bbl:
@@ -435,10 +485,12 @@ def evaluate_strategy_full(df):
                  reason = "Trend ribassista. Momentum negativo."
                  potential_upside = 0 
                  
-        return trend_label, action, color, last_close, last_rsi, drawdown, reason, technical_target, potential_upside, technical_risk, potential_downside
+        return trend_label, action, color, last_close, last_rsi, drawdown, reason, technical_target, potential_upside, technical_risk, potential_downside, w30, p30, w60, p60, w90, p90 # Aggiornato con 6 nuovi valori
         
     except Exception as e:
-        return "ERR", "Errore", "#eee", 0, 0, 0, str(e), 0, 0, 0, 0
+        logger.error(f"Errore generale in evaluate_strategy_full: {e}") # Aggiunto logging
+        # Deve restituire 17 valori in totale, inclusi 6 zeri per il backtest
+        return "ERR", "Errore", "#eee", 0, 0, 0, str(e), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 # Aggiornato per 17 valori
 
 # --- STRATEGIA DI PORTAFOGLIO ---
 def generate_portfolio_advice(df, avg_price, current_price):
@@ -505,6 +557,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
