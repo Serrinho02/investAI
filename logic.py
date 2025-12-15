@@ -197,39 +197,64 @@ def validate_ticker(ticker):
     if not ticker: return False
     try:
         t = yf.Ticker(ticker)
-        hist = t.history(period="1d")
-        return not hist.empty
+        # Fast check: history(period="1d") è molto più veloce e affidabile
+        return len(t.history(period="1d")) > 0
     except: return False
 
 def get_data_raw(tickers):
+    """
+    Funzione Universale per scaricare dati. 
+    Gestisce il download sia di singoli ticker che di liste, 
+    risolvendo i problemi di MultiIndex di yfinance.
+    """
     if not tickers: return {}
     data = {}
-    # Rimuove duplicati e pulisce i ticker (es. spazi vuoti)
+    
+    # Pulizia e Unicità
     unique_tickers = list(set([t.strip().upper() for t in tickers if t]))
     if not unique_tickers: return {}
+
     try:
-        # Scarica tutto in una volta (più efficiente)
-        string_tickers = " ".join(unique_tickers)
-        df = yf.download(string_tickers, period="2y", group_by='ticker', progress=False, auto_adjust=False)
-        # Se c'è un solo ticker, yfinance non usa il MultiIndex, il che confonde il codice dopo.
-        # Questa logica normalizza tutto.
-        if len(unique_tickers) == 1:
-            t = unique_tickers[0]
-            if not df.empty:
-                process_df(df, data, t)
-        else:
-            for t in unique_tickers:
-                try:
-                    if t in df:
-                        # .copy() è fondamentale per evitare "SettingWithCopyWarning"
-                        asset_df = df[t].copy()
-                        # Se il dataframe è vuoto o ha tutti NaN, saltalo
-                        if not asset_df.empty and not asset_df.isnull().all().all():
-                            process_df(asset_df, data, t)
-                except: pass
+        # 1. Scarichiamo sempre con group_by='ticker' per avere una struttura coerente
+        df = yf.download(unique_tickers, period="2y", group_by='ticker', progress=False, auto_adjust=False)
+        
+        if df.empty:
+            return {}
+
+        # 2. Iteriamo su ogni ticker richiesto e cerchiamo di estrarlo
+        for t in unique_tickers:
+            asset_df = pd.DataFrame()
+            
+            try:
+                # CASO A: Il ticker è nel livello superiore delle colonne (MultiIndex tipico)
+                if isinstance(df.columns, pd.MultiIndex) and t in df.columns.get_level_values(0):
+                    asset_df = df[t].copy()
+                
+                # CASO B: Un solo ticker richiesto, yfinance a volte non mette il livello ticker
+                elif len(unique_tickers) == 1:
+                    # Se le colonne sono semplici (es. 'Close', 'Open'), usiamo tutto il df
+                    if 'Close' in df.columns:
+                        asset_df = df.copy()
+                    # Se sono MultiIndex ma non abbiamo trovato il ticker prima, proviamo a spianare
+                    elif isinstance(df.columns, pd.MultiIndex):
+                        asset_df = df.copy()
+                        asset_df.columns = asset_df.columns.get_level_values(0)
+            
+                # 3. Processiamo solo se abbiamo dati validi
+                if not asset_df.empty and 'Close' in asset_df.columns:
+                    # Rimuoviamo righe con NaN critici
+                    asset_df.dropna(subset=['Close'], inplace=True)
+                    # Chiamiamo la tua funzione process_df esistente
+                    process_df(asset_df, data, t)
+                    
+            except Exception as e:
+                # print(f"Errore estrazione dati per {t}: {e}") # Debug opzionale
+                continue
+                
         return data
+
     except Exception as e:
-        print(f"Errore download massivo: {e}")
+        print(f"Errore download generale: {e}")
         return {}
 
 def process_df(df, data, t):
@@ -396,4 +421,5 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
