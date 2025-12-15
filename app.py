@@ -112,6 +112,18 @@ def create_modern_chart(df, ticker, trend_label):
     fig.update_layout(title=dict(text=f"Analisi: <b>{ticker}</b>", font=dict(size=20)), template="plotly_dark", height=500, margin=dict(l=20, r=20, t=60, b=20), showlegend=False, plot_bgcolor=bg_color, xaxis_rangeslider_visible=False)
     return fig
 
+# --- HELPER PER NOMI ASSET ---
+def get_asset_name(ticker):
+    # 1. Cerca nella nostra lista predefinita (Invertiamo il dizionario per cercare per valore)
+    # POPULAR_ASSETS è {Nome: Ticker}, noi vogliamo Ticker -> Nome
+    reversed_assets = {v: k for k, v in POPULAR_ASSETS.items()}
+    if ticker in reversed_assets:
+        return reversed_assets[ticker]
+    
+    # 2. Se non trovato, proviamo a scaricarlo (cache) o ritorniamo il ticker stesso
+    # Per semplicità e velocità, ritorniamo il ticker se non è nella lista popolare
+    return ticker
+
 # --- MAIN APP ---
 def main():
     if 'user' not in st.session_state: st.session_state.user = None
@@ -266,20 +278,26 @@ def main():
 
                         cols_rec = st.columns(3)
                         for idx, opp in enumerate(opportunities):
-                            # Stile bordo: Oro per "Golden", standard verde/grigio per altri
                             border_style = "border: 2px solid #FFD700; box-shadow: 0 0 5px #FFD700;" if "ORO" in opp['action'] else "border: 1px solid #8bc34a;"
-                            # Colore percentuale potenziale
                             pot_color = "#006400" if opp['potential'] > 0 else "#8b0000"
                             pot_str = f"+{opp['potential']:.1f}%"
+                            
+                            # Recupera nome completo
+                            asset_name = get_asset_name(opp['ticker'])
+                            
                             with cols_rec[idx % 3]: 
                                 st.markdown(f"""
                                 <div class="suggestion-box" style="background-color:{opp['color']}; {border_style}">
                                     <div style="display:flex; justify-content:space-between;">
-                                        <h4>{opp['ticker']}</h4>
+                                        <div>
+                                            <h4 style="margin:0;">{opp['ticker']}</h4>
+                                            <div style="font-size:0.75rem; color:#666; margin-bottom:4px;">{asset_name}</div>
+                                        </div>
                                         <span style="font-weight:bold; color:{pot_color};">{pot_str}</span>
                                     </div>
                                     <h3 style="color:#004d40; margin:5px 0;">{opp['action']}</h3>
                                     <p style="font-size:0.9rem;">{opp['reason']}</p>
+                                    
                                     <div style="margin-top:8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top:5px;">
                                         <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
                                             <span>Target: <b>${opp['target']:.2f}</b></span>
@@ -808,6 +826,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
