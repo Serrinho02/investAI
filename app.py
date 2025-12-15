@@ -871,7 +871,6 @@ def main():
                                     </div>
                                     <span style="font-weight:bold; color:#006400;">+{item['potential']:.1f}%</span>
                                 </div>
-                        
                                 <h3 style="color:#004d40; margin:5px 0;">{item['title']}
                                     <span style="float: right; background-color: #388e3c; color: white; padding: 4px 8px; border-radius: 5px; font-size: 1.1rem;">
                                         🎯 {item['confidence']}/100
@@ -955,6 +954,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
