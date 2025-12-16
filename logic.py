@@ -4,11 +4,9 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 import hashlib
-import requests
 import os
 import logging
 from passlib.context import CryptContext
-from datetime import datetime
 
 # --- CONFIGURAZIONE LOGGING ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,47 +23,108 @@ pwd_context = CryptContext(
 # --- CONFIGURAZIONE TELEGRAM ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 
-# --- NUOVA CONFIGURAZIONE FMP ---
-FMP_API_KEY = os.environ.get("FMP_KEY", "") 
-FMP_BASE_URL = "https://financialmodelingprep.com/api/v3/historical-price/"
-
 # --- ASSET LIST COMPLETA ---
 POPULAR_ASSETS = {
-    # --- INDICI GLOBALI (USA ONLY) ---
-    "S&P 500 (USA)": "SPY",   
-    "Nasdaq 100 (Tech)": "QQQ", 
-    # --- AZIONI CHIAVE (USA) - Alta affidabilità FMP ---
+    # --- INDICI GLOBALI (UCITS SUBSTITUTES) ---
+    "S&P 500 (USA)": "SXR8", 
+    "Nasdaq 100 (Tech)": "EQQQ", 
+    "Russell 2000 (Small Cap)": "R2US.DE", 
+    "Dow Jones": "EXSA",
+    "All-World": "VWCE.DE", 
+    "Emerging Markets": "IS3N", 
+    "Europe Stoxx 50": "FEZ",
+    "China (Large Cap)": "XCS", 
+    "China (Internet)": "CHIN", 
+    "India": "INDA",
+    "Brazil": "EWZ", 
+    "Japan": "EWJ", 
+    "UK (FTSE 100)": "EWU", 
+    "Germany (DAX)": "EWG",
+    # --- MACROECONOMIA & OBBLIGAZIONI (UCITS/GOV) ---
+    "Gov. Globali (Hedged)": "AGGH", 
+    "USD Short Term": "SGOV",         
+    "US Treasury 20Y+": "TLT.DE",
+    "US Treasury 1-3Y": "SHY.DE", 
+    "Corporate Bonds": "LQD.DE",
+    # --- MATERIE PRIME & METALLI (ETC / UCITS SUBSTITUTES) ---
+    "Gold (ETC)": "4GLD", 
+    "Silver (ETC)": "PHAG", 
+    "Oil (WTI)": "A12YJK", 
+    "Natural Gas": "DGNL.DE", 
+    "Copper": "LCLU",         
+    "Uranium": "URA.DE", 
+    "Agriculture": "DBA.DE",
+    "Litio e Batterie": "LBTG", 
+    "Metalli Industriali": "A1E86P", 
+    # --- FATTORI & SETTORI TEMATICI (UCITS SUBSTITUTES) ---
+    "Fattori Qualità": "IQQX", 
+    "Fattori Valore": "IUVD", 
+    "Semiconductors": "QDVE", 
+    "Technology": "XLK.DE", 
+    "Healthcare": "XLV.DE", 
+    "Financials": "XLF.DE", 
+    "Energy": "XLE.DE", 
+    "Materials": "XLB.DE", 
+    "Industrials": "XLI.DE", 
+    "Consumer Disc.": "XLY.DE", 
+    "Consumer Staples": "XLP.DE", 
+    "Utilities": "XLU.DE",
+    "Clean Energy": "INRG", 
+    "Cybersecurity": "CIBR.DE", 
+    "Robotics & AI": "RBOT", 
+    "Defense & Aerospace": "ITA.DE", 
+    "Biotech": "XBI.DE",
+    "Cloud Computing": "SKYY", 
+    "Water Resources": "IH2O", 
+    "E-commerce Globale": "IE00BYPLS672",
+    "Gaming & Esports": "ESPO",
+    "Gaming & Esports": "HERU",
+    # --- CRYPTO (ETP/ETC) ---
+    "Bitcoin": "EBIT", 
+    "Ethereum": "ETH.DE", 
+    "Solana": "SOL.DE",
+    "Ripple": "XRP.DE", 
+    "Binance Coin": "BNB.DE", 
+    "Cardano": "ADA.DE",
+    "Dogecoin": "DOGE.DE", 
+    "Chainlink": "LINK.DE", 
+    "Polkadot": "DOT.DE",
+    # --- AZIONI CHIAVE (USA/EUROPE/ITALIA) ---
     "Nvidia": "NVDA", 
     "Apple": "AAPL", 
     "Microsoft": "MSFT", 
     "Tesla": "TSLA", 
     "Amazon": "AMZN", 
+    "Meta": "META", 
+    "Google": "GOOGL", 
+    "Netflix": "NFLX", 
     "AMD": "AMD", 
-    "Netflix": "NFLX",
-    "Google": "GOOGL",
+    "Palantir": "PLTR", 
     "Coinbase": "COIN",
-    "Palantir": "PLTR",
-    # --- SETTORI & MATERIE PRIME (USA / Generic) ---
-    "Utilities (USA)": "XLU", 
-    "Gold (ETF)": "GLD",        
-    "Silver (ETF)": "SLV",
-    "Oil (WTI)": "USO", 
-    "Real Estate (US)": "VNQ",
-    "Corporate Bonds (US)": "LQD",
-    # --- AZIONI ITALIANE (FTSE MIB) - Testiamo la loro compatibilità FMP ---
-    # FMP potrebbe supportare solo il ticker pulito (es. ISP) o il suffisso .MI, dobbiamo testare
+    "ASML (Chip)": "ASML", 
+    "LVMH (Luxury)": "MC.PA",
+    "Hermes (Luxury)": "RMS.PA", 
+    "Campari (Bevande)": "CPR.MI",
+    "Novo Nordisk (Pharma)": "NVO", 
+    "SAP (Software)": "SAP",
+    "Ferrari": "RACE.MI", 
     "Intesa Sanpaolo": "ISP.MI", 
+    "UniCredit": "UCG.MI", 
     "Enel": "ENEL.MI", 
-    "Snam": "SRG.MI",
-    "UniCredit": "UCG.MI",
-    "Ferrari": "RACE.MI",
-    # --- CRYPTO (Formato USA/Ticker principale) ---
-    "Bitcoin": "BTCUSD", # FMP usa il formato senza trattino (BTCUSD anziché BTC-USD)
-    "Ethereum": "ETHUSD",
-    "Solana": "SOLUSD",
-    # --- Ticker che avevi già e che potresti voler mantenere ---
-    "Emerging Markets": "EEM",
-    "Cybersecurity (US)": "CIBR" 
+    "Eni": "ENI.MI", 
+    "Stellantis": "STLAM.MI", 
+    "Leonardo": "LDO.MI", 
+    "Generali": "G.MI", 
+    "Moncler": "MONC.MI", 
+    "Poste Italiane": "PST.MI", 
+    "Terna": "TRN.MI", 
+    "Snam": "SRG.MI", 
+    "Mediobanca": "MB.MI", 
+    "Tenaris": "TEN.MI", 
+    "Prysmian": "PRY.MI",
+    "STMicroelectronics": "STM.MI", 
+    "CNH Industrial": "CNHI.MI",
+    "Amplifon": "AMP.MI"
 }
 
 AUTO_SCAN_TICKERS = [v for k, v in POPULAR_ASSETS.items() if v is not None]
@@ -309,74 +368,70 @@ def verify_password(plain_password, hashed_password: str) -> bool:
 
 # --- HELPER FUNCTIONS ---
 def validate_ticker(ticker):
-    if not ticker or not FMP_API_KEY: 
-        logger.debug("Validazione saltata: Ticker o Chiave API mancante.")
-        return False
-    # Esegue una chiamata rapida a FMP (es. per l'ultimo prezzo)
-    url = f"https://financialmodelingprep.com/api/v3/quote/{ticker}?apikey={FMP_API_KEY}"
+    if not ticker: return False
     try:
-        response = requests.get(url, timeout=5)
-        response.raise_for_status() # Solleva errore per 4xx/5xx
-        data = response.json()
-        # FMP restituisce un array vuoto se il simbolo non esiste
-        if data and len(data) > 0 and 'price' in data[0]:
-            return True
-        else:
-            logger.debug(f"Validazione fallita per {ticker}: API non ha restituito dati di quotazione.")
-            return False
-    except requests.exceptions.RequestException as e:
-        logger.debug(f"Validazione fallita per {ticker} (Errore API): {e}")
+        t = yf.Ticker(ticker)
+        # Fast check: history(period="1d") è molto più veloce e affidabile
+        return len(t.history(period="1d")) > 0
+    except Exception as e: # MODIFICATO
+        logger.debug(f"Validazione fallita per {ticker}: {e}") # AGGIUNTO
         return False
 
-# Cerca la funzione get_data_raw(tickers) e sostituiscila con questo blocco:
-
-@st.cache_data(ttl=600) # Mantieni il caching di Streamlit
 def get_data_raw(tickers):
     """
-    Scarica i dati storici (2 anni) da Financial Modeling Prep (FMP).
-    La funzione ritorna un dizionario di DataFrame, come in precedenza.
+    Funzione Universale per scaricare dati. 
+    Gestisce il download sia di singoli ticker che di liste, 
+    risolvendo i problemi di MultiIndex di yfinance.
     """
-    if not tickers or not FMP_API_KEY: 
-        logger.error("Download fallito: Lista ticker o FMP API Key mancante.")
-        return {}       
+    if not tickers: return {}
     data = {}
-    unique_tickers = list(set([t.strip().upper() for t in tickers if t]))   
-    # --- NUOVA LOGICA: CALCOLA LA DATA DI INIZIO (2 anni fa) ---
-    today = datetime.now().date()
-    start_date = today.replace(year=today.year - 2).strftime('%Y-%m-%d')    
-    for t in unique_tickers:
-        try:
-            # Endpoint per i dati storici (End of Day)
-            # USIAMO I PARAMETRI 'from' E 'to' PER DEFINIRE IL PERIODO ESATTO
-            # E potenzialmente risolvere i problemi di copertura/limitazione
-            url = (f"{FMP_BASE_URL}{t}?apikey={FMP_API_KEY}"
-                   f"&from={start_date}&to={today.strftime('%Y-%m-%d')}")
-                   
-            response = requests.get(url, timeout=10) # 10 secondi di timeout
-            response.raise_for_status() # Solleva un'eccezione se la risposta è 4xx o 5xx
-            raw_data = response.json()
-            if not raw_data:
-                logger.warning(f"FMP: Nessun dato storico trovato per {t}.")
+    
+    # Pulizia e Unicità
+    unique_tickers = list(set([t.strip().upper() for t in tickers if t]))
+    if not unique_tickers: return {}
+
+    try:
+        # 1. Scarichiamo sempre con group_by='ticker' per avere una struttura coerente
+        df = yf.download(unique_tickers, period="2y", group_by='ticker', progress=False, auto_adjust=False)
+        
+        if df.empty:
+            return {}
+
+        # 2. Iteriamo su ogni ticker richiesto e cerchiamo di estrarlo
+        for t in unique_tickers:
+            asset_df = pd.DataFrame()
+            
+            try:
+                # CASO A: Il ticker è nel livello superiore delle colonne (MultiIndex tipico)
+                if isinstance(df.columns, pd.MultiIndex) and t in df.columns.get_level_values(0):
+                    asset_df = df[t].copy()
+                
+                # CASO B: Un solo ticker richiesto, yfinance a volte non mette il livello ticker
+                elif len(unique_tickers) == 1:
+                    # Se le colonne sono semplici (es. 'Close', 'Open'), usiamo tutto il df
+                    if 'Close' in df.columns:
+                        asset_df = df.copy()
+                    # Se sono MultiIndex ma non abbiamo trovato il ticker prima, proviamo a spianare
+                    elif isinstance(df.columns, pd.MultiIndex):
+                        asset_df = df.copy()
+                        asset_df.columns = asset_df.columns.get_level_values(0)
+            
+                # 3. Processiamo solo se abbiamo dati validi
+                if not asset_df.empty and 'Close' in asset_df.columns:
+                    # Rimuoviamo righe con NaN critici
+                    asset_df.dropna(subset=['Close'], inplace=True)
+                    # Chiamiamo la tua funzione process_df esistente
+                    process_df(asset_df, data, t)
+                    
+            except Exception as e:
+                # print(f"Errore estrazione dati per {t}: {e}") # Debug opzionale
                 continue
-            # Converti in DataFrame
-            df = pd.DataFrame(raw_data)
-            df.rename(columns={'date': 'Date', 'open': 'Open', 'high': 'High', 
-                                'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)          
-            # Imposta la data come indice e ordina in modo ascendente (dal più vecchio al più recente)
-            df['Date'] = pd.to_datetime(df['Date'])
-            df.set_index('Date', inplace=True)
-            df.sort_index(inplace=True) 
-            # Processiamo solo se abbiamo dati validi
-            if not df.empty and 'Close' in df.columns and len(df) >= 205:
-                # Chiamiamo la tua funzione process_df esistente (che calcola gli indicatori)
-                process_df(df, data, t)
-            else:
-                logger.warning(f"FMP: Dati insufficienti o non validi per {t} (len={len(df)}).")          
-        except requests.exceptions.HTTPError as http_err:
-            logger.error(f"FMP HTTP Error per {t}: {http_err}. Probabile ticker non trovato o limite API.")
-        except Exception as e:
-            logger.error(f"Errore download FMP per {t}: {e}")
-    return data
+                
+        return data
+
+    except Exception as e:
+        print(f"Errore download generale: {e}")
+        return {}
 
 def process_df(df, data, t):
     if len(df) < 205: 
@@ -660,13 +715,6 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
-
-
-
-
-
-
-
 
 
 
