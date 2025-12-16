@@ -52,7 +52,7 @@ POPULAR_ASSETS = {
     # --- BIG TECH (USA) ---
     "Nvidia": "NVDA", "Apple": "AAPL", "Microsoft": "MSFT", "Tesla": "TSLA", 
     "Amazon": "AMZN", "Meta": "META", "Google": "GOOGL", 
-    "Netflix": "NFLX", "AMD": "AMD", "Palantir": "PLTR", "Coinbase": "COIN",
+    "Netflix": "NFLX", "AMD": "AMD.F", "Palantir": "PLTR", "Coinbase": "COIN",
     # --- BIG EUROPE (GRANOLAS) ---
     "ASML (Chip)": "ASML", "LVMH (Luxury)": "MC.PA", 
     "Novo Nordisk (Pharma)": "NVO", "SAP (Software)": "SAP",
@@ -651,6 +651,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
