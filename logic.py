@@ -24,55 +24,45 @@ pwd_context = CryptContext(
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 
 # --- ASSET LIST COMPLETA ---
-POPULAR_ASSETS = {
-    # --- INDICI GLOBALI (UCITS SUBSTITUTES) ---
-    "S&P 500 (USA)": "SXR8", "Nasdaq 100 (Tech)": "EQQQ", 
-    "Russell 2000 (Small Cap)": "R2US.DE", "Dow Jones": "EXSA",
-    "All-World": "VWCE.DE", "Emerging Markets": "IS3N", "Europe Stoxx 50": "FEZ",
-    "China (Large Cap)": "XCS", "China (Internet)": "CHIN", "India": "INDA",
+ POPULAR_ASSETS = {
+    # --- INDICI GLOBALI ---
+    "S&P 500 (USA)": "SPY", "Nasdaq 100 (Tech)": "QQQ", 
+    "Russell 2000 (Small Cap)": "IWM", "Dow Jones": "DIA",
+    "All-World": "VWCE.DE", "Emerging Markets": "EEM", "Europe Stoxx 50": "FEZ",
+    "China (Large Cap)": "FXI", "China (Internet)": "KWEB", "India": "INDA",
     "Brazil": "EWZ", "Japan": "EWJ", "UK (FTSE 100)": "EWU", "Germany (DAX)": "EWG",
-    # --- MACROECONOMIA & OBBLIGAZIONI (UCITS/GOV) ---
-    "Gov. Globali (Hedged)": "AGGH", # NUOVO
-    "USD Short Term": "SGOV",         # NUOVO
-    "US Treasury 20Y+": "TLT.DE",
-    "US Treasury 1-3Y": "SHY.DE", 
-    "Corporate Bonds": "LQD.DE",
-    # --- MATERIE PRIME & METALLI (ETC / UCITS SUBSTITUTES) ---
-    "Gold (ETC)": "4GLD", "Silver (ETC)": "PHAG", 
-    "Oil (WTI)": "A12YJK", "Natural Gas": "DGNL.DE", 
-    "Copper": "LCLU",         # NUOVO (ETN)
-    "Uranium": "URA.DE", "Agriculture": "DBA.DE",
-    "Litio e Batterie": "LBTG", # NUOVO
-    # --- SETTORI USA & MEGATREND (UCITS SUBSTITUTES) ---
-    "Semiconductors": "QDVE", "Technology": "XLK.DE", 
-    "Healthcare": "XLV.DE", "Financials": "XLF.DE", 
-    "Energy": "XLE.DE", "Materials": "XLB.DE", 
-    "Industrials": "XLI.DE", "Consumer Disc.": "XLY.DE", 
-    "Consumer Staples": "XLP.DE", "Utilities": "XLU.DE",
-    "Clean Energy": "INRG", "Cybersecurity": "CIBR.DE", 
-    "Robotics & AI": "RBOT", 
-    "Defense & Aerospace": "ITA.DE", "Biotech": "XBI.DE",
-    "Cloud Computing": "SKYY", # NUOVO
-    "Water Resources": "IH2O", # NUOVO
-    # --- CRYPTO (ETP/ETC) ---
-    "Bitcoin": "EBIT", "Ethereum": "ETH.DE", "Solana": "SOL.DE",
-    "Ripple": "XRP.DE", "Binance Coin": "BNB.DE", "Cardano": "ADA.DE",
-    "Dogecoin": "DOGE.DE", "Chainlink": "LINK.DE", "Polkadot": "DOT.DE",
-    # --- AZIONI CHIAVE (USA/EUROPE/ITALIA) ---
+    # --- MATERIE PRIME & METALLI ---
+    "Gold": "GLD", "Silver": "SLV", "Oil (WTI)": "USO", 
+    "Natural Gas": "UNG", "Copper (Miners)": "COPX", 
+    "Uranium": "URA", "Agriculture": "DBA",
+    # --- IMMOBILIARE & OBBLIGAZIONI ---
+    "Real Estate (US)": "VNQ", "US Treasury 20Y+": "TLT", 
+    "US Treasury 1-3Y": "SHY", "Corporate Bonds": "LQD",
+    # --- SETTORI USA & MEGATREND ---
+    "Semiconductors": "SMH", "Technology": "XLK", "Healthcare": "XLV", 
+    "Financials": "XLF", "Energy": "XLE", "Materials": "XLB",
+    "Industrials": "XLI", "Consumer Disc. (Amazon/Tesla)": "XLY", 
+    "Consumer Staples (Coca/Pepsi)": "XLP", "Utilities": "XLU",
+    "Clean Energy": "ICLN", "Cybersecurity": "CIBR", "Robotics & AI": "BOTZ",
+    "Defense & Aerospace": "ITA", "Biotech": "XBI",
+    # --- CRYPTO ---
+    "Bitcoin": "BTC-USD", "Ethereum": "ETH-USD", "Solana": "SOL-USD",
+    "Ripple": "XRP-USD", "Binance Coin": "BNB-USD", "Cardano": "ADA-USD",
+    "Dogecoin": "DOGE-USD", "Chainlink": "LINK-USD", "Polkadot": "DOT-USD",
+    # --- BIG TECH (USA) ---
     "Nvidia": "NVDA", "Apple": "AAPL", "Microsoft": "MSFT", "Tesla": "TSLA", 
     "Amazon": "AMZN", "Meta": "META", "Google": "GOOGL", 
     "Netflix": "NFLX", "AMD": "AMD", "Palantir": "PLTR", "Coinbase": "COIN",
-    "ASML (Chip)": "ASML", "LVMH (Luxury)": "MC.PA",
-    "Hermes (Luxury)": "RMS.PA", # NUOVO
+    # --- BIG EUROPE (GRANOLAS) ---
+    "ASML (Chip)": "ASML", "LVMH (Luxury)": "MC.PA", 
     "Novo Nordisk (Pharma)": "NVO", "SAP (Software)": "SAP",
+    # --- ITALIA (FTSE MIB) ---
     "Ferrari": "RACE.MI", "Intesa Sanpaolo": "ISP.MI", "UniCredit": "UCG.MI", 
     "Enel": "ENEL.MI", "Eni": "ENI.MI", "Stellantis": "STLAM.MI", 
     "Leonardo": "LDO.MI", "Generali": "G.MI", "Moncler": "MONC.MI", 
     "Poste Italiane": "PST.MI", "Terna": "TRN.MI", "Snam": "SRG.MI", 
-    "Mediobanca": "MB.MI", "Tenaris": "TEN.MI", "Prysmian": "PRY.MI",
-    "STMicroelectronics": "STM.MI", # NUOVO
-    "CNH Industrial": "CNHI.MI" # NUOVO
-}
+    "Mediobanca": "MB.MI", "Tenaris": "TEN.MI", "Prysmian": "PRY.MI"
+} 
 AUTO_SCAN_TICKERS = [v for k, v in POPULAR_ASSETS.items() if v is not None]
 
 # --- DATABASE MANAGER (Supabase API Version - Compatibility Mode) ---
@@ -661,6 +651,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
