@@ -43,7 +43,7 @@ POPULAR_ASSETS = {
     "Financials": "XLF", "Energy": "XLE", "Materials": "XLB",
     "Industrials": "XLI", "Consumer Disc. (Amazon/Tesla)": "XLY", 
     "Consumer Staples (Coca/Pepsi)": "XLP", "Utilities": "XLU",
-    "Clean Energy": "ICLN", "Cybersecurity": "CIBR", "Robotics & AI": "BOTZ",
+    "Clean Energy": "ICLN", "Cybersecurity": "CIBR.MI", "Robotics & AI": "BOTZ",
     "Defense & Aerospace": "ITA", "Biotech": "XBI",
     # --- CRYPTO ---
     "Bitcoin": "BTC-USD", "Ethereum": "ETH-USD", "Solana": "SOL-USD",
@@ -651,6 +651,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
