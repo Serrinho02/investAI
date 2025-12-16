@@ -24,7 +24,7 @@ pwd_context = CryptContext(
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 
 # --- ASSET LIST COMPLETA ---
- POPULAR_ASSETS = {
+POPULAR_ASSETS = {
     # --- INDICI GLOBALI ---
     "S&P 500 (USA)": "SPY", "Nasdaq 100 (Tech)": "QQQ", 
     "Russell 2000 (Small Cap)": "IWM", "Dow Jones": "DIA",
@@ -651,6 +651,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
