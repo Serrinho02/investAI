@@ -337,18 +337,22 @@ def get_data_raw(tickers):
     """
     if not tickers or not FMP_API_KEY: 
         logger.error("Download fallito: Lista ticker o FMP API Key mancante.")
-        return {}
+        return {}       
     data = {}
-    unique_tickers = list(set([t.strip().upper() for t in tickers if t]))
-    # FMP restituisce 2 anni di dati per default su historical-price
+    unique_tickers = list(set([t.strip().upper() for t in tickers if t]))   
+    # --- NUOVA LOGICA: CALCOLA LA DATA DI INIZIO (2 anni fa) ---
+    today = datetime.now().date()
+    start_date = today.replace(year=today.year - 2).strftime('%Y-%m-%d')    
     for t in unique_tickers:
         try:
-            # Endpoint per i dati storici (End of Day, per rispettare il limite free)
-            url = f"{FMP_BASE_URL}{t}?apikey={FMP_API_KEY}"
+            # Endpoint per i dati storici (End of Day)
+            # USIAMO I PARAMETRI 'from' E 'to' PER DEFINIRE IL PERIODO ESATTO
+            # E potenzialmente risolvere i problemi di copertura/limitazione
+            url = (f"{FMP_BASE_URL}{t}?apikey={FMP_API_KEY}"
+                   f"&from={start_date}&to={today.strftime('%Y-%m-%d')}")
+                   
             response = requests.get(url, timeout=10) # 10 secondi di timeout
             response.raise_for_status() # Solleva un'eccezione se la risposta è 4xx o 5xx
-
-            # FMP restituisce i dati al contrario (più recente prima)
             raw_data = response.json()
             if not raw_data:
                 logger.warning(f"FMP: Nessun dato storico trovato per {t}.")
@@ -356,7 +360,7 @@ def get_data_raw(tickers):
             # Converti in DataFrame
             df = pd.DataFrame(raw_data)
             df.rename(columns={'date': 'Date', 'open': 'Open', 'high': 'High', 
-                                'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
+                                'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)          
             # Imposta la data come indice e ordina in modo ascendente (dal più vecchio al più recente)
             df['Date'] = pd.to_datetime(df['Date'])
             df.set_index('Date', inplace=True)
@@ -366,7 +370,7 @@ def get_data_raw(tickers):
                 # Chiamiamo la tua funzione process_df esistente (che calcola gli indicatori)
                 process_df(df, data, t)
             else:
-                logger.warning(f"FMP: Dati insufficienti o non validi per {t} (len={len(df)}).")
+                logger.warning(f"FMP: Dati insufficienti o non validi per {t} (len={len(df)}).")          
         except requests.exceptions.HTTPError as http_err:
             logger.error(f"FMP HTTP Error per {t}: {http_err}. Probabile ticker non trovato o limite API.")
         except Exception as e:
@@ -655,6 +659,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
