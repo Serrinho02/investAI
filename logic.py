@@ -26,107 +26,53 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 # --- ASSET LIST COMPLETA ---
 POPULAR_ASSETS = {
     # --- INDICI GLOBALI (UCITS SUBSTITUTES) ---
-    "S&P 500 (USA)": "SXR8", 
-    "Nasdaq 100 (Tech)": "EQQQ", 
-    "Russell 2000 (Small Cap)": "R2US.DE", 
-    "Dow Jones": "EXSA",
-    "All-World": "VWCE.DE", 
-    "Emerging Markets": "IS3N", 
-    "Europe Stoxx 50": "FEZ",
-    "China (Large Cap)": "XCS", 
-    "China (Internet)": "CHIN", 
-    "India": "INDA",
-    "Brazil": "EWZ", 
-    "Japan": "EWJ", 
-    "UK (FTSE 100)": "EWU", 
-    "Germany (DAX)": "EWG",
+    "S&P 500 (USA)": "SXR8", "Nasdaq 100 (Tech)": "EQQQ", 
+    "Russell 2000 (Small Cap)": "R2US.DE", "Dow Jones": "EXSA",
+    "All-World": "VWCE.DE", "Emerging Markets": "IS3N", "Europe Stoxx 50": "FEZ",
+    "China (Large Cap)": "XCS", "China (Internet)": "CHIN", "India": "INDA",
+    "Brazil": "EWZ", "Japan": "EWJ", "UK (FTSE 100)": "EWU", "Germany (DAX)": "EWG",
     # --- MACROECONOMIA & OBBLIGAZIONI (UCITS/GOV) ---
-    "Gov. Globali (Hedged)": "AGGH", 
-    "USD Short Term": "SGOV",         
+    "Gov. Globali (Hedged)": "AGGH", # NUOVO
+    "USD Short Term": "SGOV",         # NUOVO
     "US Treasury 20Y+": "TLT.DE",
     "US Treasury 1-3Y": "SHY.DE", 
     "Corporate Bonds": "LQD.DE",
     # --- MATERIE PRIME & METALLI (ETC / UCITS SUBSTITUTES) ---
-    "Gold (ETC)": "4GLD", 
-    "Silver (ETC)": "PHAG", 
-    "Oil (WTI)": "A12YJK", 
-    "Natural Gas": "DGNL.DE", 
-    "Copper": "LCLU",         
-    "Uranium": "URA.DE", 
-    "Agriculture": "DBA.DE",
-    "Litio e Batterie": "LBTG", 
-    "Metalli Industriali": "A1E86P", 
-    # --- FATTORI & SETTORI TEMATICI (UCITS SUBSTITUTES) ---
-    "Fattori Qualità": "IQQX", 
-    "Fattori Valore": "IUVD", 
-    "Semiconductors": "QDVE", 
-    "Technology": "XLK.DE", 
-    "Healthcare": "XLV.DE", 
-    "Financials": "XLF.DE", 
-    "Energy": "XLE.DE", 
-    "Materials": "XLB.DE", 
-    "Industrials": "XLI.DE", 
-    "Consumer Disc.": "XLY.DE", 
-    "Consumer Staples": "XLP.DE", 
-    "Utilities": "XLU.DE",
-    "Clean Energy": "INRG", 
-    "Cybersecurity": "CIBR.DE", 
+    "Gold (ETC)": "4GLD", "Silver (ETC)": "PHAG", 
+    "Oil (WTI)": "A12YJK", "Natural Gas": "DGNL.DE", 
+    "Copper": "LCLU",         # NUOVO (ETN)
+    "Uranium": "URA.DE", "Agriculture": "DBA.DE",
+    "Litio e Batterie": "LBTG", # NUOVO
+    # --- SETTORI USA & MEGATREND (UCITS SUBSTITUTES) ---
+    "Semiconductors": "QDVE", "Technology": "XLK.DE", 
+    "Healthcare": "XLV.DE", "Financials": "XLF.DE", 
+    "Energy": "XLE.DE", "Materials": "XLB.DE", 
+    "Industrials": "XLI.DE", "Consumer Disc.": "XLY.DE", 
+    "Consumer Staples": "XLP.DE", "Utilities": "XLU.DE",
+    "Clean Energy": "INRG", "Cybersecurity": "CIBR.DE", 
     "Robotics & AI": "RBOT", 
-    "Defense & Aerospace": "ITA.DE", 
-    "Biotech": "XBI.DE",
-    "Cloud Computing": "SKYY", 
-    "Water Resources": "IH2O", 
-    "E-commerce Globale": "IE00BYPLS672",
-    "Gaming & Esports": "ESPO",
-    "Gaming & Esports": "HERU",
+    "Defense & Aerospace": "ITA.DE", "Biotech": "XBI.DE",
+    "Cloud Computing": "SKYY", # NUOVO
+    "Water Resources": "IH2O", # NUOVO
     # --- CRYPTO (ETP/ETC) ---
-    "Bitcoin": "EBIT", 
-    "Ethereum": "ETH.DE", 
-    "Solana": "SOL.DE",
-    "Ripple": "XRP.DE", 
-    "Binance Coin": "BNB.DE", 
-    "Cardano": "ADA.DE",
-    "Dogecoin": "DOGE.DE", 
-    "Chainlink": "LINK.DE", 
-    "Polkadot": "DOT.DE",
+    "Bitcoin": "EBIT", "Ethereum": "ETH.DE", "Solana": "SOL.DE",
+    "Ripple": "XRP.DE", "Binance Coin": "BNB.DE", "Cardano": "ADA.DE",
+    "Dogecoin": "DOGE.DE", "Chainlink": "LINK.DE", "Polkadot": "DOT.DE",
     # --- AZIONI CHIAVE (USA/EUROPE/ITALIA) ---
-    "Nvidia": "NVDA", 
-    "Apple": "AAPL", 
-    "Microsoft": "MSFT", 
-    "Tesla": "TSLA", 
-    "Amazon": "AMZN", 
-    "Meta": "META", 
-    "Google": "GOOGL", 
-    "Netflix": "NFLX", 
-    "AMD": "AMD", 
-    "Palantir": "PLTR", 
-    "Coinbase": "COIN",
-    "ASML (Chip)": "ASML", 
-    "LVMH (Luxury)": "MC.PA",
-    "Hermes (Luxury)": "RMS.PA", 
-    "Campari (Bevande)": "CPR.MI",
-    "Novo Nordisk (Pharma)": "NVO", 
-    "SAP (Software)": "SAP",
-    "Ferrari": "RACE.MI", 
-    "Intesa Sanpaolo": "ISP.MI", 
-    "UniCredit": "UCG.MI", 
-    "Enel": "ENEL.MI", 
-    "Eni": "ENI.MI", 
-    "Stellantis": "STLAM.MI", 
-    "Leonardo": "LDO.MI", 
-    "Generali": "G.MI", 
-    "Moncler": "MONC.MI", 
-    "Poste Italiane": "PST.MI", 
-    "Terna": "TRN.MI", 
-    "Snam": "SRG.MI", 
-    "Mediobanca": "MB.MI", 
-    "Tenaris": "TEN.MI", 
-    "Prysmian": "PRY.MI",
-    "STMicroelectronics": "STM.MI", 
-    "CNH Industrial": "CNHI.MI",
-    "Amplifon": "AMP.MI"
+    "Nvidia": "NVDA", "Apple": "AAPL", "Microsoft": "MSFT", "Tesla": "TSLA", 
+    "Amazon": "AMZN", "Meta": "META", "Google": "GOOGL", 
+    "Netflix": "NFLX", "AMD": "AMD", "Palantir": "PLTR", "Coinbase": "COIN",
+    "ASML (Chip)": "ASML", "LVMH (Luxury)": "MC.PA",
+    "Hermes (Luxury)": "RMS.PA", # NUOVO
+    "Novo Nordisk (Pharma)": "NVO", "SAP (Software)": "SAP",
+    "Ferrari": "RACE.MI", "Intesa Sanpaolo": "ISP.MI", "UniCredit": "UCG.MI", 
+    "Enel": "ENEL.MI", "Eni": "ENI.MI", "Stellantis": "STLAM.MI", 
+    "Leonardo": "LDO.MI", "Generali": "G.MI", "Moncler": "MONC.MI", 
+    "Poste Italiane": "PST.MI", "Terna": "TRN.MI", "Snam": "SRG.MI", 
+    "Mediobanca": "MB.MI", "Tenaris": "TEN.MI", "Prysmian": "PRY.MI",
+    "STMicroelectronics": "STM.MI", # NUOVO
+    "CNH Industrial": "CNHI.MI" # NUOVO
 }
-
 AUTO_SCAN_TICKERS = [v for k, v in POPULAR_ASSETS.items() if v is not None]
 
 # --- DATABASE MANAGER (Supabase API Version - Compatibility Mode) ---
@@ -715,6 +661,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
