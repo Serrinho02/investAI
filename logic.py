@@ -8,6 +8,7 @@ import requests
 import os
 import logging
 from passlib.context import CryptContext
+from datetime import datetime
 
 # --- CONFIGURAZIONE LOGGING ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -659,6 +660,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
