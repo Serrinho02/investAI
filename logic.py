@@ -25,7 +25,7 @@ pwd_context = CryptContext(
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 
 # --- NUOVA CONFIGURAZIONE FMP ---
-FMP_API_KEY = os.environ.get("FMP_API_KEY") 
+FMP_API_KEY = os.environ.get("FMP_KEY", "") 
 FMP_BASE_URL = "https://financialmodelingprep.com/api/v3/historical-price/"
 
 # --- ASSET LIST COMPLETA ---
@@ -655,6 +655,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
