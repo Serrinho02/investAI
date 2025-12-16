@@ -44,24 +44,27 @@ POPULAR_ASSETS = {
     "Industrials": "XLI", "Consumer Disc. (Amazon/Tesla)": "XLY", 
     "Consumer Staples (Coca/Pepsi)": "XLP", "Utilities": "XLU",
     "Clean Energy": "ICLN", "Cybersecurity": "CIBR.MI", "Robotics & AI": "BOTZ",
-    "Defense & Aerospace": "ITA", "Biotech": "XBI",
+    "Defense & Aerospace": "ITA", "Biotech": "XBI", "Tonies SE": "TNIE.F", "DroneShield": "DRH.F",
+    "Redcare Pharmacy": "0RJT.IL",
     # --- CRYPTO ---
     "Bitcoin": "BTC-USD", "Ethereum": "ETH-USD", "Solana": "SOL-USD",
     "Ripple": "XRP-USD", "Binance Coin": "BNB-USD", "Cardano": "ADA-USD",
     "Dogecoin": "DOGE-USD", "Chainlink": "LINK-USD", "Polkadot": "DOT-USD",
     # --- BIG TECH (USA) ---
     "Nvidia": "NVDA", "Apple": "AAPL", "Microsoft": "MSFT", "Tesla": "TSLA", 
-    "Amazon": "AMZN", "Meta": "META", "Google": "GOOGL", 
+    "Amazon": "AMZN", "Meta": "META", "Google": "GOOGL", "Oracle": "ORCL",
     "Netflix": "NFLX", "AMD": "AMD.F", "Palantir": "PLTR", "Coinbase": "COIN",
     # --- BIG EUROPE (GRANOLAS) ---
     "ASML (Chip)": "ASML", "LVMH (Luxury)": "MC.PA", 
-    "Novo Nordisk (Pharma)": "NVO", "SAP (Software)": "SAP",
+    "Novo Nordisk (Pharma)": "NVO", "SAP (Software)": "SAP", "Eeasyjet": "EJT1.F",
     # --- ITALIA (FTSE MIB) ---
     "Ferrari": "RACE.MI", "Intesa Sanpaolo": "ISP.MI", "UniCredit": "UCG.MI", 
     "Enel": "ENEL.MI", "Eni": "ENI.MI", "Stellantis": "STLAM.MI", 
     "Leonardo": "LDO.MI", "Generali": "G.MI", "Moncler": "MONC.MI", 
     "Poste Italiane": "PST.MI", "Terna": "TRN.MI", "Snam": "SRG.MI", 
-    "Mediobanca": "MB.MI", "Tenaris": "TEN.MI", "Prysmian": "PRY.MI"
+    "Mediobanca": "MB.MI", "Tenaris": "TEN.MI", "Prysmian": "PRY.MI",
+    "Fincantieri": "FCT.MI", "Juventus": "JUV.F", "Banca Monte dei Paschi di Siena": "BMPSM.XD",
+    "Banca Popolare di Sondrio": "BPSOM.XD"
 } 
 AUTO_SCAN_TICKERS = [v for k, v in POPULAR_ASSETS.items() if v is not None]
 
@@ -651,6 +654,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
