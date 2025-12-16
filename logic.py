@@ -438,10 +438,6 @@ def get_data_raw(tickers):
             logger.error(f"Errore download FMP per {t}: {e}")
     return data
 
-    except Exception as e:
-        print(f"Errore download generale: {e}")
-        return {}
-
 def process_df(df, data, t):
     if len(df) < 205: 
         return 
@@ -724,6 +720,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
