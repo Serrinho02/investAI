@@ -112,12 +112,12 @@ def confirm_delete_dialog(tx_id):
     
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Sì, Elimina", type="primary", width="container"):
+        if st.button("Sì, Elimina", type="primary", width="stretch"):
             db.delete_transaction(tx_id)
             st.cache_data.clear()
             st.rerun()
     with col2:
-        if st.button("Annulla", width="container"):
+        if st.button("Annulla", width="stretch"):
             st.rerun()
 
 # --- WRAPPER CACHE PER IL SITO (Per velocità) ---
@@ -165,13 +165,13 @@ def main():
             with tab1:
                 u = st.text_input("Username", key="l_u")
                 p = st.text_input("Password", type="password", key="l_p")
-                if st.button("Login", type="primary", width="container"):
+                if st.button("Login", type="primary", width="stretch"):
                     if db.login_user(u, p): st.session_state.user = u; st.rerun()
                     else: st.error("Errore credenziali")
             with tab2:
                 nu = st.text_input("Nuovo Username", key="r_u")
                 np = st.text_input("Nuova Password", type="password", key="r_p")
-                if st.button("Crea Account", width="container"):
+                if st.button("Crea Account", width="stretch"):
                     if db.register_user(nu, np): st.success("Creato! Accedi."); 
                     else: st.error("Utente esistente")
         return
@@ -208,7 +208,7 @@ def main():
         st.divider()
 
         # --- 4. LOGOUT ---
-        if st.button("🚪 Esci dal Profilo", type="primary", width="container"):
+        if st.button("🚪 Esci dal Profilo", type="primary", width="stretch"):
             st.session_state.user = None
             st.rerun()
             
@@ -303,7 +303,7 @@ def main():
 
 
         with st.expander("🤖 L'App Consiglia (Segnali Operativi)", expanded=True):
-            if st.button("🔎 Scansiona Tutto il Mercato", width="container"):
+            if st.button("🔎 Scansiona Tutto il Mercato", width="stretch"):
                 with st.spinner("L'AI sta analizzando tutti gli asset in cerca di occasioni..."):
                     auto_data = get_data(AUTO_SCAN_TICKERS)
                     opportunities = []
@@ -463,7 +463,7 @@ def main():
         c_title, c_btn = st.columns([3, 1])
         with c_title: st.title("Gestione Portafoglio")
         with c_btn:
-            if st.button("🔄 Aggiorna Dati", width="container"):
+            if st.button("🔄 Aggiorna Dati", width="stretch"):
                 st.cache_data.clear()
                 st.rerun()
         
@@ -687,7 +687,7 @@ def main():
                     n_date = st.date_input("Data", date.today(), key="nd")
                     n_type = st.selectbox("Tipo", ["BUY", "SELL"], key="nt")
                     
-                    if st.button("Salva Transazione", type="primary", width="container"):
+                    if st.button("Salva Transazione", type="primary", width="stretch"):
                         if validate_ticker(n_sym): 
                             db.add_transaction(user, n_sym, n_qty, n_prc, str(n_date), n_type, n_fee)
                             st.cache_data.clear()
@@ -699,7 +699,7 @@ def main():
         st.title("L'AI Advisor")
         st.markdown("Analisi completa di tutti gli asset in portafoglio e nuove opportunità.")
 
-        if st.button("🔄 Analizza Situazione", width="container"):
+        if st.button("🔄 Analizza Situazione", width="stretch"):
             st.cache_data.clear()
             st.rerun()
 
@@ -994,5 +994,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
