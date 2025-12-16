@@ -77,7 +77,8 @@ POPULAR_ASSETS = {
     "Cloud Computing": "SKYY", 
     "Water Resources": "IH2O", 
     "E-commerce Globale": "IE00BYPLS672",
-    "Gaming & Esports": "GAMR",
+    "Gaming & Esports": "ESPO",
+    "Gaming & Esports": "HERU",
     # --- CRYPTO (ETP/ETC) ---
     "Bitcoin": "EBIT", 
     "Ethereum": "ETH.DE", 
@@ -714,6 +715,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
