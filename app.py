@@ -112,12 +112,12 @@ def confirm_delete_dialog(tx_id):
     
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Sì, Elimina", type="primary", use_container_width=True):
+        if st.button("Sì, Elimina", type="primary", width=True):
             db.delete_transaction(tx_id)
             st.cache_data.clear()
             st.rerun()
     with col2:
-        if st.button("Annulla", use_container_width=True):
+        if st.button("Annulla", width=True):
             st.rerun()
 
 # --- WRAPPER CACHE PER IL SITO (Per velocità) ---
@@ -165,13 +165,13 @@ def main():
             with tab1:
                 u = st.text_input("Username", key="l_u")
                 p = st.text_input("Password", type="password", key="l_p")
-                if st.button("Login", type="primary", use_container_width=True):
+                if st.button("Login", type="primary", width=True):
                     if db.login_user(u, p): st.session_state.user = u; st.rerun()
                     else: st.error("Errore credenziali")
             with tab2:
                 nu = st.text_input("Nuovo Username", key="r_u")
                 np = st.text_input("Nuova Password", type="password", key="r_p")
-                if st.button("Crea Account", use_container_width=True):
+                if st.button("Crea Account", width=True):
                     if db.register_user(nu, np): st.success("Creato! Accedi."); 
                     else: st.error("Utente esistente")
         return
@@ -208,7 +208,7 @@ def main():
         st.divider()
 
         # --- 4. LOGOUT ---
-        if st.button("🚪 Esci dal Profilo", type="primary", use_container_width=True):
+        if st.button("🚪 Esci dal Profilo", type="primary", width=True):
             st.session_state.user = None
             st.rerun()
             
@@ -303,7 +303,7 @@ def main():
 
 
         with st.expander("🤖 L'App Consiglia (Segnali Operativi)", expanded=True):
-            if st.button("🔎 Scansiona Tutto il Mercato", use_container_width=True):
+            if st.button("🔎 Scansiona Tutto il Mercato", width=True):
                 with st.spinner("L'AI sta analizzando tutti gli asset in cerca di occasioni..."):
                     auto_data = get_data(AUTO_SCAN_TICKERS)
                     opportunities = []
@@ -424,7 +424,7 @@ def main():
                     k4.metric("RSI", f"{rsi:.1f}")
                     st.metric("🏆 Confidence Score", f"{conf}/100")
                     
-                    st.plotly_chart(create_modern_chart(df, selected_ticker, tl), use_container_width=True)
+                    st.plotly_chart(create_modern_chart(df, selected_ticker, tl), width=True)
 
                     # Aggiungi un riquadro per i risultati storici
                     st.subheader("Storico del Segnale di Acquisto") # AGGIUNTO
@@ -463,7 +463,7 @@ def main():
         c_title, c_btn = st.columns([3, 1])
         with c_title: st.title("Gestione Portafoglio")
         with c_btn:
-            if st.button("🔄 Aggiorna Dati", use_container_width=True):
+            if st.button("🔄 Aggiorna Dati", width=True):
                 st.cache_data.clear()
                 st.rerun()
         
@@ -582,7 +582,7 @@ def main():
             with c_pie:
                 fig = go.Figure(data=[go.Pie(labels=[x['Label'] for x in pie_data], values=[x['Value'] for x in pie_data], hole=.4)])
                 fig.update_layout(margin=dict(t=0,b=0,l=0,r=0), height=250, showlegend=False)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width=True)
             with c_det:
                 perf_df = pd.DataFrame([
                     {
@@ -598,7 +598,7 @@ def main():
                 st.dataframe(
                     perf_df, 
                     hide_index=True, 
-                    use_container_width=True, 
+                    width=True, 
                     column_config={
                         "P&L %": st.column_config.NumberColumn(format="%.2f%%"),
                         "Valore": st.column_config.NumberColumn(format="€%.2f"),
@@ -688,7 +688,7 @@ def main():
                     n_date = st.date_input("Data", date.today(), key="nd")
                     n_type = st.selectbox("Tipo", ["BUY", "SELL"], key="nt")
                     
-                    if st.button("Salva Transazione", type="primary", use_container_width=True):
+                    if st.button("Salva Transazione", type="primary", width=True):
                         if validate_ticker(n_sym): 
                             db.add_transaction(user, n_sym, n_qty, n_prc, str(n_date), n_type, n_fee)
                             st.cache_data.clear()
@@ -700,7 +700,7 @@ def main():
         st.title("L'AI Advisor")
         st.markdown("Analisi completa di tutti gli asset in portafoglio e nuove opportunità.")
 
-        if st.button("🔄 Analizza Situazione", use_container_width=True):
+        if st.button("🔄 Analizza Situazione", width=True):
             st.cache_data.clear()
             st.rerun()
 
@@ -995,6 +995,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
