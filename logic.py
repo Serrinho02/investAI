@@ -30,7 +30,7 @@ POPULAR_ASSETS = {
     "Russell 2000 (Small Cap)": "IWM", "Dow Jones": "DIA",
     "All-World": "VWCE.DE", "Emerging Markets": "EEM", "Europe Stoxx 50": "FEZ",
     "China (Large Cap)": "FXI", "China (Internet)": "KWEB", "India": "INDA",
-    "Brazil": "EWZ", "Japan": "EWJ", "UK (FTSE 100)": "EWU", "Germany (DAX)": "EWG",
+    "Brazil": "4BRZ", "Japan": "EWJ", "UK (FTSE 100)": "EWU", "Germany (DAX)": "EWG",
     # --- MATERIE PRIME & METALLI ---
     "Gold": "GLD", "Silver": "SLV", "Oil (WTI)": "USO", 
     "Natural Gas": "UNG", "Copper (Miners)": "COPX", 
@@ -654,6 +654,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
