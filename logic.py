@@ -55,7 +55,8 @@ POPULAR_ASSETS = {
     "Amazon": "AMZN", "Meta": "META", "Google": "GOOGL", "Oracle": "ORCL",
     "Netflix": "NFLX", "AMD": "AMD.F", "Palantir": "PLTR", "Coinbase": "COIN",
     "monday.com": "MNDY", "Arista Networks": "ANET", "Duolingo": "DUOL", 
-    "The Trade Desk": "TTD", "Axon Enterprise": "AXON",
+    "The Trade Desk": "TTD", "Axon Enterprise": "AXON", "BigBear.ai": "BBAI",
+    "Installed Building Products": "IBP",
     # --- BIG EUROPE (GRANOLAS) ---
     "ASML (Chip)": "ASML", "LVMH (Luxury)": "MC.PA", 
     "Novo Nordisk (Pharma)": "NVO", "SAP (Software)": "SAP", "Eeasyjet": "EJT1.F",
@@ -656,6 +657,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
             color = "#ffe6e6"
             
     return title, advice, color
+
 
 
 
