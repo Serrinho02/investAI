@@ -436,15 +436,19 @@ def main():
 
 # --- 2. PORTAFOGLIO ---
     elif page == "💼 Portafoglio":
-        from logic import get_historical_portfolio_value, generate_excel_report, evaluate_strategy_full, generate_portfolio_advice
+        # Importa la nuova funzione Excel
+        from logic import get_historical_portfolio_value, generate_enhanced_excel_report, evaluate_strategy_full, generate_portfolio_advice
         import numpy as np
         
         c_title, c_btn = st.columns([3, 1])
         with c_title: st.title("Gestione Portafoglio")
         with c_btn:
+            # FIX: Il pulsante ora forza la pulizia della cache e mostra uno spinner
             if st.button("🔄 Aggiorna Dati", width="stretch"):
-                st.cache_data.clear()
-                st.rerun()
+                with st.spinner("Scaricamento nuovi dati di mercato..."):
+                    st.cache_data.clear()
+                    time.sleep(1) # Piccolo delay per assicurare il reset
+                    st.rerun()
         
         # Recupera dati dal DB
         pf, history_list = db.get_portfolio_summary(user)
@@ -461,15 +465,13 @@ def main():
         tot_cost = 0
         pie_data = []
         
-        # Calcolo First Buy Date preciso
+        # Calcolo First Buy Date
         first_buy_dates = {}
         if raw_tx:
             for t in raw_tx:
                 sym = t[1]
                 try: d = datetime.strptime(str(t[4]), '%Y-%m-%d').date()
                 except: d = date.today()
-                
-                # Consideriamo solo i BUY per la data di inizio holding
                 if t[5] == 'BUY':
                     if sym not in first_buy_dates or d < first_buy_dates[sym]:
                         first_buy_dates[sym] = d
@@ -483,7 +485,6 @@ def main():
             pf[t]['pnl'] = val - pf[t]['total_cost'] 
             pf[t]['pnl_pct'] = (pf[t]['pnl'] / pf[t]['total_cost'] * 100) if pf[t]['total_cost'] > 0 else 0
             
-            # Calcolo giorni esatti
             f_date = first_buy_dates.get(t, date.today())
             pf[t]['days_held'] = (date.today() - f_date).days
             
@@ -494,7 +495,7 @@ def main():
         pnl_tot = tot_val - tot_cost
         pnl_tot_pct = (pnl_tot/tot_cost*100) if tot_cost > 0 else 0
 
-        # --- METRICHE PRINCIPALI ---
+        # --- METRICHE ---
         with st.container():
             st.markdown("""
             <style>
@@ -526,42 +527,25 @@ def main():
                 val_attuale_asset = dat['qty'] * dat['cur_price']
                 alloc = (val_attuale_asset / tot_val * 100) if tot_val > 0 else 0
                 days = dat.get('days_held', 0)
-                
-                # Badge giorni esatti come richiesto
                 time_badge = f"📅 {days} gg"
 
                 with cols_adv[i % 3]:
                     st.markdown(f"""
                         <div class="suggestion-box" style="background-color:{col}; border: 1px solid #bbb; min-height: 320px;">
                             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                                <div>
-                                    <strong>{sym}</strong>
-                                    <div style="font-size:0.7rem; color:#666;">{asset_name}</div> 
-                                </div>
+                                <div><strong>{sym}</strong><div style="font-size:0.7rem; color:#666;">{asset_name}</div></div>
                                 <div style="text-align:right;">
                                     <span style="color:{'green' if dat['pnl_pct']>=0 else 'red'}; font-weight:bold;">{dat['pnl_pct']:.1f}%</span>
                                     <div style="font-size:0.7rem; background:#444; color:white; padding:2px 6px; border-radius:4px; margin-top:2px;">{time_badge}</div>
                                 </div>
                             </div>
                             <h3 style="color:#222; margin:8px 0; font-size:1.1rem;">{tit}
-                                <span style="float: right; background-color: #388e3c; color: white; padding: 2px 6px; border-radius: 5px; font-size: 0.9rem;">
-                                    🎯 {conf}
-                                </span>
+                                <span style="float: right; background-color: #388e3c; color: white; padding: 2px 6px; border-radius: 5px; font-size: 0.9rem;">🎯 {conf}</span>
                             </h3>
                             <p style="font-size:0.85rem; margin-bottom: 5px; line-height:1.3;">{adv}</p>
                             <hr style="margin: 5px 0; border-color: rgba(0,0,0,0.1);">
-                            <div style="padding: 6px; background-color: rgba(255,255,255,0.7); border-radius: 6px; border: 1px dashed #666; margin-bottom: 6px;">
-                                <div style="font-size: 0.65rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 2px; text-align:center;">Win Rate Storico</div>
-                                <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
-                                    <span>30G: <b>{w30:.0f}%</b></span>
-                                    <span>60G: <b>{w60:.0f}%</b></span>
-                                    <span>90G: <b>{w90:.0f}%</b></span>
-                                </div>
-                            </div>
                             <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color:#444;">
-                                <span>Tgt: <b>${tgt:.0f}</b></span>
-                                <span>Risk: <b>${risk_pr:.0f}</b></span>
-                                <span>Alloc: <b>{alloc:.1f}%</b></span>
+                                <span>Tgt: <b>${tgt:.0f}</b></span><span>Risk: <b>${risk_pr:.0f}</b></span><span>Alloc: <b>{alloc:.1f}%</b></span>
                             </div>
                         </div>""", unsafe_allow_html=True)
         else:
@@ -572,78 +556,104 @@ def main():
         # --- TABS ANALISI ---
         tab_chart, tab_alloc, tab_tx = st.tabs(["📈 Analisi Grafica", "🍰 Allocazione", "📝 Cronologia"])
 
-        # --- TAB A: GRAFICI AVANZATI ---
         with tab_chart:
             if raw_tx:
-                with st.spinner("Calcolo storico (Metodo Costo Medio Ponderato)..."):
+                with st.spinner("Elaborazione dati finanziari..."):
                     df_hist = get_historical_portfolio_value(raw_tx, market_data)
                 
                 if not df_hist.empty:
-                    g1, g2, g3, g4 = st.tabs(["Capitale", "Utili Netti", "Breakdown Asset", "Previsione"])
+                    # FIX: Tasto Download Excel Ben Visibile Qui
+                    # Generiamo l'Excel usando la nuova funzione avanzata
+                    excel_data = generate_enhanced_excel_report(df_hist, pf)
                     
-                    # 1. CAPITALE (Valore vs Investito)
-                    with g1:
+                    col_dl_btn, _ = st.columns([1, 3])
+                    with col_dl_btn:
+                        st.download_button(
+                            label="📥 Scarica Report Excel Completo (Grafici+Colori)",
+                            data=excel_data,
+                            file_name=f"Report_InvestAI_{date.today()}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True
+                        )
+
+                    g1, g2, g3, g4 = st.tabs(["Capitale", "Utili", "Asset", "Previsione"])
+                    
+                    with g1: # CAPITALE
                         fig_hist = go.Figure()
-                        # Area Verde: Valore di Mercato
                         fig_hist.add_trace(go.Scatter(x=df_hist.index, y=df_hist['Total Value'], mode='lines', name='Valore Portafoglio', line=dict(color='#004d40', width=2), fill='tozeroy'))
-                        # Linea Rossa Tratteggiata: Costo Investito (Cost Basis)
                         fig_hist.add_trace(go.Scatter(x=df_hist.index, y=df_hist['Total Invested'], mode='lines', name='Capitale Investito', line=dict(color='#ef5350', width=2, dash='dash')))
-                        fig_hist.update_layout(height=400, hovermode="x unified", title="Crescita del Capitale nel Tempo", template="plotly_white")
+                        fig_hist.update_layout(height=400, hovermode="x unified", title="Valore vs Investito", template="plotly_white")
                         st.plotly_chart(fig_hist, use_container_width=True)
 
-                    # 2. UTILI NETTI (Profitto Puro)
-                    with g2:
-                        # Calcolo Profitto Netto = Valore - Investito
+                    with g2: # UTILI
                         df_hist['Net Profit'] = df_hist['Total Value'] - df_hist['Total Invested']
                         fig_pnl = go.Figure()
-                        # Colore verde se profitto > 0, rosso se < 0
                         colors = ['#66bb6a' if v >= 0 else '#ef5350' for v in df_hist['Net Profit']]
                         fig_pnl.add_trace(go.Bar(x=df_hist.index, y=df_hist['Net Profit'], name='P&L Giornaliero', marker_color=colors))
-                        fig_pnl.update_layout(height=400, title="Guadagno/Perdita Netta Giornaliera (€)", template="plotly_white")
+                        fig_pnl.update_layout(height=400, title="Guadagno/Perdita Netta (€)", template="plotly_white")
                         st.plotly_chart(fig_pnl, use_container_width=True)
 
-                    # 3. BREAKDOWN
-                    with g3:
+                    with g3: # BREAKDOWN
                         fig_stack = go.Figure()
                         cols_asset = [c for c in df_hist.columns if c not in ['Total Value', 'Total Invested', 'Net Profit']]
                         for c in cols_asset:
                             fig_stack.add_trace(go.Scatter(x=df_hist.index, y=df_hist[c], mode='lines', stackgroup='one', name=c))
-                        fig_stack.update_layout(height=400, title="Composizione Portafoglio nel Tempo", template="plotly_white")
+                        fig_stack.update_layout(height=400, title="Composizione nel Tempo", template="plotly_white")
                         st.plotly_chart(fig_stack, use_container_width=True)
 
-                    # 4. PREVISIONE (Corretta)
-                    with g4:
-                        # Filtriamo i giorni dove il capitale investito cambia (depositi), per calcolare la volatilità REALE del mercato
-                        # e non la volatilità causata dai tuoi versamenti.
+                    with g4: # PREVISIONE (PULITA)
+                        # 1. Calcolo Volatilità Storica del Portafoglio
+                        # Usiamo solo il valore totale per non intasare il grafico
+                        last_val = df_hist['Total Value'].iloc[-1]
+                        
+                        # Filtriamo i depositi per trovare la vera volatilità
                         df_rets = df_hist.copy()
                         df_rets['Invested_Change'] = df_rets['Total Invested'].diff()
-                        # Teniamo solo i giorni dove non hai versato soldi (cambio investito ~ 0)
                         mask_market_only = df_rets['Invested_Change'].abs() < 1.0 
-                        
                         if mask_market_only.sum() > 10:
-                            daily_ret_std = df_rets.loc[mask_market_only, 'Total Value'].pct_change().std()
+                            daily_vol = df_rets.loc[mask_market_only, 'Total Value'].pct_change().std()
+                            daily_drift = df_rets.loc[mask_market_only, 'Total Value'].pct_change().mean()
                         else:
-                            # Fallback se ci sono troppi pochi dati puliti
-                            daily_ret_std = 0.015 #(1.5% giornaliero standard)
-                            
-                        last_val = df_hist['Total Value'].iloc[-1]
-                        days_proj = 30
+                            daily_vol = 0.015
+                            daily_drift = 0.0005
+
+                        # Se il drift è negativo (periodo brutto), usiamo un drift neutro per la proiezione ottimistica
+                        if np.isnan(daily_vol): daily_vol = 0.015
+                        if np.isnan(daily_drift): daily_drift = 0.0
+
+                        days_proj = 90
                         dates_proj = pd.date_range(start=df_hist.index[-1], periods=days_proj+1)
                         
-                        # Proiezione semplice (Brownian Motion senza drift per prudenza)
-                        upper = [last_val * (1 + daily_ret_std)**i for i in range(days_proj+1)]
-                        lower = [last_val * (1 - daily_ret_std)**i for i in range(days_proj+1)]
+                        # Simulazione Monte Carlo Semplificata (Cono di confidenza)
+                        # Upper: +1 Std Dev, Lower: -1 Std Dev
+                        # Usiamo la radice quadrata del tempo per scalare la volatilità
+                        
+                        forecast_mean = [last_val * (1 + daily_drift)**i for i in range(days_proj+1)]
+                        # Volatilità scala con sqrt(t)
+                        upper_band = [m * (1 + daily_vol * np.sqrt(i)) for i, m in enumerate(forecast_mean)]
+                        lower_band = [m * (1 - daily_vol * np.sqrt(i)) for i, m in enumerate(forecast_mean)]
                         
                         fig_proj = go.Figure()
-                        fig_proj.add_trace(go.Scatter(x=dates_proj, y=upper, mode='lines', line=dict(width=0), showlegend=False))
-                        fig_proj.add_trace(go.Scatter(x=dates_proj, y=lower, mode='lines', fill='tonexty', fillcolor='rgba(0,100,80,0.2)', line=dict(width=0), name='Range Probabile'))
-                        fig_proj.add_trace(go.Scatter(x=[dates_proj[0], dates_proj[-1]], y=[last_val, last_val], mode='lines', line=dict(color='gray', dash='dot'), name='Scenario Neutro'))
-                        fig_proj.update_layout(height=400, title="Previsione Statistica (30gg)", template="plotly_white")
+                        
+                        # Storico (Ultimi 60 giorni per contesto)
+                        cutoff_hist = df_hist.index[-60:] if len(df_hist) > 60 else df_hist.index
+                        fig_proj.add_trace(go.Scatter(x=cutoff_hist, y=df_hist.loc[cutoff_hist, 'Total Value'], 
+                                                    mode='lines', name='Storico Recente', line=dict(color='gray', width=2)))
+
+                        # Proiezioni
+                        fig_proj.add_trace(go.Scatter(x=dates_proj, y=upper_band, mode='lines', line=dict(width=0), showlegend=False))
+                        fig_proj.add_trace(go.Scatter(x=dates_proj, y=lower_band, mode='lines', fill='tonexty', 
+                                                    fillcolor='rgba(0, 77, 64, 0.2)', line=dict(width=0), name='Range Probabile (90gg)'))
+                        
+                        fig_proj.add_trace(go.Scatter(x=dates_proj, y=forecast_mean, mode='lines', 
+                                                    line=dict(color='#004d40', dash='dash', width=2), name='Trend Atteso'))
+
+                        fig_proj.update_layout(height=450, title="Previsione Portafoglio Totale (90 Giorni)", template="plotly_white")
                         st.plotly_chart(fig_proj, use_container_width=True)
-                        st.caption("Nota: La previsione esclude i giorni di deposito per calcolare la vera volatilità degli asset.")
+                        st.info("ℹ️ Il grafico mostra SOLO il valore totale del portafoglio per chiarezza. L'area ombreggiata rappresenta la volatilità attesa.")
 
                 else:
-                    st.warning("Dati storici insufficienti.")
+                    st.warning("Dati insufficienti.")
             else:
                 st.info("Nessuna transazione.")
 
@@ -657,7 +667,6 @@ def main():
                     st.plotly_chart(fig_pie, use_container_width=True)
                 
                 with c_list:
-                    # Tabella con colonne richieste
                     alloc_data = []
                     for k,v in pf.items():
                         f_date = first_buy_dates.get(k, "N/A")
@@ -668,10 +677,8 @@ def main():
                             "P&L %": v['pnl_pct'] / 100, 
                             "Data 1° Acq": f_date
                         })
-                    
                     df_alloc = pd.DataFrame(alloc_data).sort_values("Valore Attuale", ascending=False)
-                    st.dataframe(
-                        df_alloc, hide_index=True, use_container_width=True,
+                    st.dataframe(df_alloc, hide_index=True, use_container_width=True,
                         column_config={
                             "Valore Attuale": st.column_config.NumberColumn(format="€%.2f"),
                             "Costo Totale": st.column_config.NumberColumn(format="€%.2f"),
@@ -682,12 +689,11 @@ def main():
             else:
                 st.info("Portafoglio vuoto.")
 
-        # --- TAB C: CRONOLOGIA (EDITABLE) ---
+        # --- TAB C: CRONOLOGIA ---
         with tab_tx:
             st.subheader("Gestione Transazioni")
-            st.info("💡 Puoi modificare i valori direttamente nelle celle. Per eliminare una riga, spunta 'Elimina' e premi 'Salva Modifiche'.")
+            st.info("💡 Modifica celle e premi Salva. Spunta 'Elimina' per cancellare.")
             
-            # Form Aggiunta Rapida (Accordion chiuso per pulizia)
             with st.expander("➕ Aggiungi Nuova Transazione"):
                 with st.form("add_tx_form"):
                     c1, c2, c3, c4, c5 = st.columns(5)
@@ -703,19 +709,16 @@ def main():
                             st.rerun()
                         else: st.error("Ticker invalido")
 
-            # DATA EDITOR PER MODIFICA/ELIMINAZIONE
             if raw_tx:
-                # Creiamo un DataFrame Pandas dai dati grezzi
                 df_editor = pd.DataFrame(raw_tx, columns=['ID', 'Ticker', 'Qta', 'Prezzo', 'Data', 'Tipo', 'Fee'])
                 df_editor['Data'] = pd.to_datetime(df_editor['Data']).dt.date
-                df_editor['Elimina'] = False # Nuova colonna checkbox
+                df_editor['Elimina'] = False 
                 
-                # Visualizziamo l'editor
                 edited_df = st.data_editor(
                     df_editor,
                     column_config={
                         "ID": st.column_config.NumberColumn(disabled=True),
-                        "Elimina": st.column_config.CheckboxColumn(help="Spunta per eliminare la riga", default=False),
+                        "Elimina": st.column_config.CheckboxColumn(default=False),
                         "Data": st.column_config.DateColumn(format="DD/MM/YYYY"),
                         "Prezzo": st.column_config.NumberColumn(format="€%.2f"),
                         "Fee": st.column_config.NumberColumn(format="€%.2f"),
@@ -723,33 +726,19 @@ def main():
                     },
                     hide_index=True,
                     use_container_width=True,
-                    num_rows="fixed" # Non permettiamo aggiunta righe vuote qui, usiamo il form sopra
+                    num_rows="fixed" 
                 )
                 
-                # Bottone di salvataggio modifiche
                 if st.button("💾 Salva Modifiche al Database", type="primary"):
-                    changes_count = 0
-                    
-                    # 1. Gestione Eliminazioni
                     rows_to_delete = edited_df[edited_df['Elimina'] == True]
                     for index, row in rows_to_delete.iterrows():
                         db.delete_transaction(row['ID'])
-                        changes_count += 1
-                        
-                    # 2. Gestione Modifiche (Confrontiamo con originale per efficienza o aggiorniamo tutto ciò che non è cancellato)
                     rows_to_update = edited_df[edited_df['Elimina'] == False]
-                    # Iteriamo e aggiorniamo (un po' brutale ma sicuro per poche righe)
                     for index, row in rows_to_update.iterrows():
-                        # Aggiorniamo sempre per sicurezza se non tracciamo le modifiche singole
                         db.update_transaction(row['ID'], row['Ticker'], row['Qta'], row['Prezzo'], str(row['Data']), row['Tipo'], row['Fee'])
-                    
-                    if changes_count > 0 or len(rows_to_update) > 0:
-                        st.success("Database aggiornato con successo!")
-                        st.cache_data.clear()
-                        time.sleep(1)
-                        st.rerun()
+                    st.success("Aggiornato!"); st.cache_data.clear(); time.sleep(1); st.rerun()
             else:
-                st.info("Nessuna transazione presente.")
+                st.info("Nessuna transazione.")
                                 
     # --- 3. CONSIGLI OPERATIVI ---
     elif page == "💡 Consigli":
@@ -1051,6 +1040,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
