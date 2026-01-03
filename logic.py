@@ -662,101 +662,107 @@ def generate_portfolio_advice(df, avg_price, current_price):
 # --- NUOVA SEZIONE: RICOSTRUZIONE STORICO PORTAFOGLIO ---
 def get_historical_portfolio_value(transactions, market_data_history):
     """
-    Ricostruisce:
-    1. Valore Totale (Market Value)
-    2. Costo Investito (Invested Capital)
-    3. Valore per singolo asset
+    Ricostruisce lo storico usando il metodo del PREZZO MEDIO DI CARICO (Weighted Average Cost).
+    Questo corregge gli errori di visualizzazione P&L quando si fanno compravendite.
     """
     if not transactions:
         return pd.DataFrame()
 
-    # 1. Preparazione Transazioni
+    # 1. Preparazione DataFrame Transazioni
     df_tx = pd.DataFrame(transactions, columns=['id', 'symbol', 'qty', 'price', 'date', 'type', 'fee'])
     df_tx['date'] = pd.to_datetime(df_tx['date'])
     df_tx = df_tx.sort_values('date')
 
-    # 2. Date Range
+    # 2. Date Range Completo
     start_date = df_tx['date'].min()
-    end_date = pd.Timestamp.today()
+    end_date = pd.Timestamp.today().normalize()
     date_range = pd.date_range(start=start_date, end=end_date, freq='D')
 
-    # 3. Strutture dati
+    # 3. Strutture per il loop temporale
     unique_tickers = df_tx['symbol'].unique()
     
-    # Holdings: Quantità possedute giorno per giorno
-    df_qty = pd.DataFrame(0.0, index=date_range, columns=unique_tickers)
-    # Invested: Soldi spesi netti (Cash Flow cumulativo) giorno per giorno
-    df_invested_total = pd.Series(0.0, index=date_range) 
-
-    current_qty = {t: 0.0 for t in unique_tickers}
-    current_invested = 0.0
-
-    # 4. Iterazione temporale (più lenta ma precisa per il Cost Basis)
-    # Creiamo un dizionario di variazioni per data per velocizzare
-    changes = df_tx.groupby(['date', 'symbol']).agg({'qty': 'sum', 'price': 'mean', 'type': lambda x: x.iloc[0], 'fee': 'sum'}).reset_index()
+    # Inizializziamo dizionari per tenere traccia dello stato giorno per giorno
+    # State: {ticker: {'qty': 0.0, 'cost_basis': 0.0}}
+    portfolio_state = {t: {'qty': 0.0, 'total_cost_basis': 0.0} for t in unique_tickers}
     
-    # Dizionario rapido per le transazioni: {date: [rows]}
-    tx_map = {}
-    for idx, row in df_tx.iterrows():
-        d = row['date'].normalize() # Solo data senza ora
-        if d not in tx_map: tx_map[d] = []
-        tx_map[d].append(row)
+    # Liste per costruire il DataFrame finale
+    history_records = []
 
-    # Scansione giorno per giorno per riempire Qty e Costo Investito
-    running_qty = {t: 0.0 for t in unique_tickers}
-    running_invested = 0.0
-    
-    for d in date_range:
-        d_norm = d.normalize()
-        if d_norm in tx_map:
-            for tx in tx_map[d_norm]:
+    # Raggruppa transazioni per giorno per processarle insieme
+    tx_grouped = df_tx.groupby('date')
+
+    # Scarichiamo i prezzi una volta sola e li allineiamo
+    price_history = pd.DataFrame(index=date_range)
+    for t in unique_tickers:
+        if t in market_data_history:
+            # Forward fill dei prezzi (se è domenica, usa prezzo venerdì)
+            price_history[t] = market_data_history[t]['Close'].reindex(date_range).ffill().bfill()
+        else:
+            price_history[t] = 0.0
+
+    # 4. Loop Giorno per Giorno (Simulazione Cronologica)
+    for current_date in date_range:
+        # A. Applica transazioni del giorno
+        if current_date in tx_grouped.groups:
+            daily_txs = tx_grouped.get_group(current_date)
+            for _, tx in daily_txs.iterrows():
                 sym = tx['symbol']
                 q = tx['qty']
                 p = tx['price']
                 f = tx['fee']
                 
+                curr_qty = portfolio_state[sym]['qty']
+                curr_cost = portfolio_state[sym]['total_cost_basis']
+
                 if tx['type'] == 'BUY':
-                    running_qty[sym] += q
-                    running_invested += (q * p) + f
+                    # Aumento quantità e costo totale (inclusa fee)
+                    portfolio_state[sym]['qty'] += q
+                    portfolio_state[sym]['total_cost_basis'] += (q * p) + f
+                
                 elif tx['type'] == 'SELL':
-                    # Quando vendiamo, riduciamo il "capitale investito" pro-quota
-                    # o semplicemente registriamo il cash out. 
-                    # Metodo semplice: Invested si abbassa del valore medio di carico o del prezzo di vendita?
-                    # Per vedere l'utile realizzato + non realizzato, sottraiamo il costo medio.
-                    # Ma per semplicità visiva "Valore vs Spesa", sottraiamo (qty * prezzo_acquisto_medio).
-                    # Qui approssimiamo sottraendo il cash flow generato (q*p) per vedere l'esposizione netta.
-                    running_qty[sym] -= q
-                    running_invested -= (q * p) # Cash rientrato
-                    
-        df_qty.loc[d] = pd.Series(running_qty)
-        df_invested_total.loc[d] = running_invested
+                    if curr_qty > 0:
+                        # Calcolo Prezzo Medio di Carico (PMC) attuale
+                        avg_cost = curr_cost / curr_qty
+                        # Riduciamo il costo totale in proporzione alle azioni vendute (FIFO/Avg logic)
+                        cost_removed = avg_cost * q
+                        portfolio_state[sym]['qty'] = max(0, curr_qty - q)
+                        portfolio_state[sym]['total_cost_basis'] = max(0, curr_cost - cost_removed)
+                    else:
+                        # Caso short selling o errore dati (ignoriamo per sicurezza)
+                        pass
 
-    # 5. Calcolo Valore di Mercato (Qty * Price History)
-    df_market_val = pd.DataFrame(0.0, index=date_range, columns=['Total Value'])
-    df_asset_val = pd.DataFrame(0.0, index=date_range, columns=unique_tickers)
+        # B. Calcola Valori a fine giornata
+        daily_total_value = 0.0
+        daily_total_invested = 0.0
+        
+        asset_values = {}
 
-    # Scarichiamo/Allineiamo i prezzi
-    df_prices = pd.DataFrame(index=date_range)
-    for t in unique_tickers:
-        if t in market_data_history:
-            # Reindex e forward fill per i giorni festivi
-            prices = market_data_history[t]['Close'].reindex(date_range).ffill().bfill()
-            df_prices[t] = prices
-        else:
-            df_prices[t] = 0.0
+        for sym in unique_tickers:
+            qty = portfolio_state[sym]['qty']
+            cost_basis = portfolio_state[sym]['total_cost_basis']
             
-    # Calcolo valore asset per asset
-    common_cols = df_qty.columns.intersection(df_prices.columns)
-    df_asset_val[common_cols] = df_qty[common_cols] * df_prices[common_cols]
+            # Prezzo di mercato di oggi
+            market_price = price_history.at[current_date, sym]
+            
+            # Valore Attuale Asset = Qty * Prezzo Mercato
+            curr_val = qty * market_price
+            
+            daily_total_value += curr_val
+            daily_total_invested += cost_basis
+            asset_values[sym] = curr_val
+
+        # C. Salva il record giornaliero
+        record = {
+            'Total Value': daily_total_value,
+            'Total Invested': daily_total_invested,
+            **asset_values # Unpacchetta i valori dei singoli asset
+        }
+        history_records.append(record)
+
+    # 5. Creazione DataFrame Finale
+    df_history = pd.DataFrame(history_records, index=date_range)
     
-    # Totali
-    df_market_val['Total Value'] = df_asset_val.sum(axis=1)
-    
-    # 6. Unione finale
-    df_final = pd.concat([df_market_val, df_asset_val], axis=1)
-    df_final['Total Invested'] = df_invested_total # Aggiungiamo la colonna costi
-    
-    return df_final.dropna()
+    return df_history
 
 def generate_excel_report(df_history, current_portfolio):
     """Genera un file Excel in memoria da scaricare"""
@@ -775,6 +781,7 @@ def generate_excel_report(df_history, current_portfolio):
         df_pf.to_excel(writer, sheet_name='Portafoglio Attuale', index=False)
         
     return output.getvalue()
+
 
 
 
