@@ -436,8 +436,9 @@ def main():
 
     # --- 2. PORTAFOGLIO ---
     elif page == "💼 Portafoglio":
-        # Importiamo qui le funzioni helper per lo storico (assicurati siano in logic.py)
-        from logic import get_historical_portfolio_value, generate_excel_report
+        # Importiamo le funzioni helper necessarie
+        # Assicurati che get_historical_portfolio_value e generate_excel_report siano in logic.py
+        from logic import get_historical_portfolio_value, generate_excel_report, evaluate_strategy_full, generate_portfolio_advice
         
         if 'tx_page' not in st.session_state: st.session_state.tx_page = 0
         
@@ -500,9 +501,84 @@ def main():
             m2.metric("P&L Totale", f"€{pnl_tot:,.2f}", delta=f"{pnl_tot_pct:.2f}%")
             m3.metric("Liquidità Investita", f"€{tot_cost:,.2f}")
 
+        # --- SEZIONE 2: STRATEGIA OPERATIVA (RESTORED) ---
+        st.divider()
+        st.subheader("💡 Strategia Operativa")
+        
+        with st.expander("ℹ️ Legenda Comandi", expanded=False):
+            st.markdown("""
+            <div style="font-size: 0.85rem; line-height: 1.4; color: #333;">
+                L'Advisor analizza ogni posizione in base alla volatilità dell'asset (ATR) e al Trend di fondo.
+                <ul style="padding-left: 20px; margin-bottom: 10px;">
+                    <li>🚀 <b>MOONBAG / TREND SANO:</b> Profitto solido, trend rialzista. Lascia correre.</li>
+                    <li>💰 <b>TAKE PROFIT:</b> RSI estremo o trend incerto. Metti al sicuro parte dei profitti.</li>
+                    <li>🚨 <b>PROTEGGI / INCASSA:</b> Trend cambiato in negativo. Uscire.</li>
+                    <li>🛒 <b>MEDIA (Accumulo):</b> Prezzo a sconto in trend rialzista. Occasione.</li>
+                    <li>⚠️ <b>CUT LOSS:</b> Perdita e trend negativo. Tagliare prima che peggiori.</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Generazione Card Consigli
+        valid_pf = [item for item in pf.items() if item[0] in market_data]
+        sorted_pf = sorted(valid_pf, key=lambda x: x[1]['pnl_pct']) # Ordina per P&L
+
+        if sorted_pf:
+            cols_adv = st.columns(3)
+            for i, (sym, dat) in enumerate(sorted_pf):
+                asset_name = get_asset_name(sym)
+                # Genera il consiglio finanziario
+                tit, adv, col = generate_portfolio_advice(market_data[sym], dat['avg_price'], dat['cur_price'])
+                # Ottieni i dati tecnici e score per la card
+                _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90, conf = evaluate_strategy_full(market_data[sym])
+                
+                val_attuale_asset = dat['qty'] * dat['cur_price']
+                percentuale_allocazione = (val_attuale_asset / tot_val * 100) if tot_val > 0 else 0
+                
+                with cols_adv[i % 3]:
+                    st.markdown(f"""
+                        <div class="suggestion-box" style="background-color:{col}; border: 1px solid #bbb; min-height: 280px;">
+                            <div style="display:flex; justify-content:space-between;">
+                                <div>
+                                    <strong>{sym}</strong>
+                                    <div style="font-size:0.7rem; color:#666; margin-top:-2px;">{asset_name}</div> 
+                                </div>
+                                <span style="color:{'green' if dat['pnl_pct']>=0 else 'red'}; font-weight:bold;">{dat['pnl_pct']:.1f}%</span>
+                            </div>
+                            <h3 style="color:#222; margin:5px 0;">{tit}
+                                <span style="float: right; background-color: #388e3c; color: white; padding: 4px 8px; border-radius: 5px; font-size: 1.1rem;">
+                                    🎯 {conf}/100
+                                </span>
+                            </h3>
+                            <p style="font-size:0.9rem; margin-bottom: 5px;">{adv}</p>
+                            <hr style="margin: 5px 0; border-color: rgba(0,0,0,0.1);">
+                            <div style="font-size: 0.8rem; display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                <span>Prezzo: €{dat['cur_price']:.2f}</span>
+                                <span>Tot: <b>€{val_attuale_asset:,.0f}</b></span>
+                            </div>
+                            <div style="font-size: 0.8rem; text-align: right; margin-bottom: 10px;">Allocazione: <b>{percentuale_allocazione:.1f}%</b></div>
+                            
+                            <div style="padding: 8px; background-color: rgba(255,255,255,0.8); border-radius: 6px; border: 1px dashed #666; margin-bottom: 8px;">
+                                <div style="font-size: 0.7rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Probabilità Storica (Buy Signal)</div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                                    <span style="font-weight:bold;">30G: {w30:.0f}% <span style="color:{'green' if p30>=0 else 'red'};">({p30:.1f}%)</span></span>
+                                    <span style="font-weight:bold;">90G: {w90:.0f}% <span style="color:{'green' if p90>=0 else 'red'};">({p90:.1f}%)</span></span>
+                                </div>
+                            </div>
+                            
+                            <div style="padding: 8px; background-color: rgba(255,255,255,0.6); border-radius: 6px; border: 1px dashed #666;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                                    <span style="color: #006400;">✅ Tgt: <b>${tgt:.0f}</b></span>
+                                    <span style="color: #b30000;">🔻 Risk: <b>${risk_pr:.0f}</b></span>
+                                </div>
+                            </div>
+                        </div>""", unsafe_allow_html=True)
+        else:
+            st.info("Aggiungi asset al portafoglio per ricevere i consigli dell'AI.")
+
         st.divider()
 
-        # --- SEZIONE 2: TABELLA DI MARCIA (TABS) ---
+        # --- SEZIONE 3: TABELLA DI MARCIA (TABS) ---
         # Organizziamo in Tab per non avere una pagina infinita su mobile
         tab_chart, tab_alloc, tab_tx = st.tabs(["📈 Andamento Storico", "🍰 Allocazione", "📝 Transazioni"])
 
@@ -976,6 +1052,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
