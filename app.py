@@ -624,7 +624,7 @@ def main():
                             daily_ret_std = df_rets.loc[mask_market_only, 'Total Value'].pct_change().std()
                         else:
                             # Fallback se ci sono troppi pochi dati puliti
-                            daily_ret_std = 0.015 (1.5% giornaliero standard)
+                            daily_ret_std = 0.015 #(1.5% giornaliero standard)
                             
                         last_val = df_hist['Total Value'].iloc[-1]
                         days_proj = 30
@@ -1051,6 +1051,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
