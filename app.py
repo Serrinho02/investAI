@@ -744,7 +744,7 @@ def main():
     elif page == "💡 Consigli":
         # --- FIX: IMPORTAZIONI NECESSARIE ---
         # Assicurati che queste funzioni siano presenti nel tuo file logic.py o definite globalmente
-        from logic import generate_portfolio_advice, evaluate_strategy_full, get_data, AUTO_SCAN_TICKERS, get_asset_name
+        from logic import generate_portfolio_advice, evaluate_strategy_full, AUTO_SCAN_TICKERS
         
         st.title("L'AI Advisor")
         st.markdown("Analisi completa di tutti gli asset in portafoglio e nuove opportunità.")
@@ -1038,6 +1038,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
