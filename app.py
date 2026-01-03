@@ -740,8 +740,12 @@ def main():
             else:
                 st.info("Nessuna transazione.")
                                 
-    # --- 3. CONSIGLI OPERATIVI ---
+# --- 3. CONSIGLI OPERATIVI ---
     elif page == "💡 Consigli":
+        # --- FIX: IMPORTAZIONI NECESSARIE ---
+        # Assicurati che queste funzioni siano presenti nel tuo file logic.py o definite globalmente
+        from logic import generate_portfolio_advice, evaluate_strategy_full, get_data, AUTO_SCAN_TICKERS, get_asset_name
+        
         st.title("L'AI Advisor")
         st.markdown("Analisi completa di tutti gli asset in portafoglio e nuove opportunità.")
 
@@ -826,7 +830,6 @@ def main():
                             "color": col, "price": pr, "rsi": rsi,
                             "target": tgt, "potential": pot,
                             "risk": r_pr, "risk_pot": r_pot,
-                            # AGGIUNTA DEI DATI DI BACKTESTING
                             "w30": w30, "p30": p30, "w60": w60, "p60": p60, "w90": w90, "p90": p90,
                             "confidence": conf
                         })
@@ -854,6 +857,7 @@ def main():
                     else: # Fallback se i dati sono stati persi
                         tgt, pot, risk_pr, risk_pot = 0, 0, 0, 0
                         w30, p30, w60, p60, w90, p90 = 0, 0, 0, 0, 0, 0
+                    
                     with cols[i%3]: 
                         st.markdown(f"""
                         <div class="suggestion-box" style="background-color:{item['color']}; border: 2px solid #d32f2f;">
@@ -874,8 +878,7 @@ def main():
                 st.subheader("🟢 Occasioni di Accumulo (Portafoglio)")
                 cols = st.columns(3)
                 for i, item in enumerate(actions_buy_more):
-                    asset_name = get_asset_name(item['ticker']) # AGGIUNTO
-                    # CHIAMATA COMPLETA PER DATI TECNICI (Per mostrare il nome e il P&L storico)
+                    asset_name = get_asset_name(item['ticker']) 
                     if item['ticker'] in market_data:
                         _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90, conf = evaluate_strategy_full(market_data[item['ticker']]) 
                     else:
@@ -897,24 +900,21 @@ def main():
                         </div>""", unsafe_allow_html=True)
                 st.divider()
 
-            # SEZIONE 3: HOLDING (QUELLE CHE MANCAVANO!)
-            # Questa sezione viene mostrata SEMPRE se ci sono asset in hold
+            # SEZIONE 3: HOLDING
             if actions_hold:
                 st.subheader("🔵 Mantenimento & Monitoraggio")
                 st.caption("Asset stabili che non richiedono azioni immediate. Lascia correre i profitti o attendi sviluppi.")
                 
                 cols = st.columns(3)
                 for i, item in enumerate(actions_hold):
-                    asset_name = get_asset_name(item['ticker']) # AGGIUNTO
+                    asset_name = get_asset_name(item['ticker']) 
             
-                    # CHIAMATA COMPLETA PER DATI TECNICI (Per mostrare il nome e il P&L storico)
                     if item['ticker'] in market_data:
                         _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90, conf = evaluate_strategy_full(market_data[item['ticker']]) 
                     else:
                         tgt, pot, risk_pr, risk_pot = 0, 0, 0, 0
                         w30, p30, w60, p60, w90, p90 = 0, 0, 0, 0, 0, 0
 
-                    
                     # Colore testo dinamico
                     text_color = "#333"
                     if "MOONBAG" in item['title']: text_color = "#2e7d32"
@@ -944,7 +944,6 @@ def main():
                 cols = st.columns(3)
                 for i, item in enumerate(actions_new_entry):
                     asset_name = get_asset_name(item['ticker'])
-                    # Bordo speciale per "ORO", altrimenti bordo standard grigio/verde
                     border_style = "border: 2px solid #FFD700; box-shadow: 0 0 5px #FFD700;" if "ORO" in item['title'] else "border: 1px solid #8bc34a;"
                     
                     with cols[i%3]: 
@@ -965,9 +964,9 @@ def main():
                                 <p style="font-size:0.9rem;">{item['desc']}</p> 
                                 <div style="margin-top:8px; border-top: 1px dashed rgba(0,0,0,0.3); padding-top:5px; font-size:0.8rem; color:#555;">
                                     <div style="display:flex; justify-content:space-between; font-weight:bold;">
-                                        <span>30 Giorni: {item['w30']:.0f}% ({item['p30']:.1f}%)</span>
-                                        <span>60 Giorni: {item['w60']:.0f}% ({item['p60']:.1f}%)</span>
-                                        <span>90 Giorni: {item['w90']:.0f}% ({item['p90']:.1f}%)</span>
+                                        <span>30G: {item['w30']:.0f}% ({item['p30']:.1f}%)</span>
+                                        <span>60G: {item['w60']:.0f}% ({item['p60']:.1f}%)</span>
+                                        <span>90G: {item['w90']:.0f}% ({item['p90']:.1f}%)</span>
                                     </div>
                                     <div style="text-align: center; margin-top: 5px; font-size: 0.75rem; color: #777;">
                                         (Win Rate % / PnL Medio %)
@@ -988,7 +987,6 @@ def main():
             if not (actions_sell or actions_buy_more or actions_hold or actions_new_entry):
                 st.info("Nessun dato disponibile per generare consigli.")
 
-    # --- 4. IMPOSTAZIONI ---
 # --- 4. IMPOSTAZIONI ---
     elif page == "⚙️ Impostazioni":
         st.title("Impostazioni")
@@ -1040,6 +1038,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
