@@ -659,6 +659,87 @@ def generate_portfolio_advice(df, avg_price, current_price):
     return title, advice, color
 
 
+# --- NUOVA SEZIONE: RICOSTRUZIONE STORICO PORTAFOGLIO ---
+def get_historical_portfolio_value(transactions, market_data_history):
+    """
+    Ricostruisce il valore del portafoglio giorno per giorno basandosi sulle transazioni.
+    transactions: lista di tuple (id, symbol, qty, price, date, type, fee)
+    market_data_history: dizionario {ticker: DataFrame con colonna 'Close'}
+    """
+    if not transactions:
+        return pd.DataFrame()
+
+    # 1. Crea un DataFrame delle transazioni
+    df_tx = pd.DataFrame(transactions, columns=['id', 'symbol', 'qty', 'price', 'date', 'type', 'fee'])
+    df_tx['date'] = pd.to_datetime(df_tx['date'])
+    df_tx = df_tx.sort_values('date')
+
+    # 2. Determina il range temporale (dalla prima transazione a oggi)
+    start_date = df_tx['date'].min()
+    end_date = pd.Timestamp.today()
+    date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+
+    # 3. Crea un DataFrame "Holdings" (Quantità possedute giorno per giorno)
+    # Colonne = Ticker, Indice = Date
+    unique_tickers = df_tx['symbol'].unique()
+    df_holdings = pd.DataFrame(0.0, index=date_range, columns=unique_tickers)
+
+    for idx, row in df_tx.iterrows():
+        # Dal giorno della transazione in poi, aggiorna la quantità
+        if row['type'] == 'BUY':
+            df_holdings.loc[row['date']:, row['symbol']] += row['qty']
+        elif row['type'] == 'SELL':
+            df_holdings.loc[row['date']:, row['symbol']] -= row['qty']
+    
+    # Rimuovi quantità negative (errori di data entry) o piccolissime
+    df_holdings[df_holdings < 0] = 0
+
+    # 4. Calcola il Valore (Holdings * Prezzo Storico)
+    df_value = pd.DataFrame(0.0, index=date_range, columns=['Total Value'])
+    
+    # Prepariamo i prezzi allineati al date_range
+    df_prices = pd.DataFrame(index=date_range)
+    
+    for t in unique_tickers:
+        if t in market_data_history:
+            # Prende la serie 'Close', fa il reindex per coprire tutti i giorni (riempiendo i weekend con il valore del venerdì)
+            prices = market_data_history[t]['Close'].reindex(date_range).ffill().bfill()
+            df_prices[t] = prices
+        else:
+            df_prices[t] = 0.0
+
+    # Moltiplicazione matriciale: Qty * Price
+    # df_holdings e df_prices devono avere le stesse colonne
+    common_cols = df_holdings.columns.intersection(df_prices.columns)
+    
+    # Calcolo valore per ogni asset
+    df_asset_values = df_holdings[common_cols] * df_prices[common_cols]
+    
+    # Somma totale
+    df_value['Total Value'] = df_asset_values.sum(axis=1)
+    
+    # Aggiungi dettaglio per asset (utile per grafici impilati)
+    df_final = pd.concat([df_value, df_asset_values], axis=1)
+    
+    return df_final.dropna()
+
+def generate_excel_report(df_history, current_portfolio):
+    """Genera un file Excel in memoria da scaricare"""
+    from io import BytesIO
+    output = BytesIO()
+    
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        # Foglio 1: Storico Valore
+        df_history.to_excel(writer, sheet_name='Storico Valore')
+        
+        # Foglio 2: Portafoglio Attuale
+        df_pf = pd.DataFrame([
+            {"Asset": k, "Qta": v['qty'], "Prezzo Medio": v['avg_price'], "Valore Attuale": v['cur_price'] * v['qty']}
+            for k, v in current_portfolio.items()
+        ])
+        df_pf.to_excel(writer, sheet_name='Portafoglio Attuale', index=False)
+        
+    return output.getvalue()
 
 
 
