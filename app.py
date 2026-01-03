@@ -557,7 +557,6 @@ def main():
                                 <span>Tot: <b>€{val_attuale_asset:,.0f}</b></span>
                             </div>
                             <div style="font-size: 0.8rem; text-align: right; margin-bottom: 10px;">Allocazione: <b>{percentuale_allocazione:.1f}%</b></div>
-                            
                             <div style="padding: 8px; background-color: rgba(255,255,255,0.8); border-radius: 6px; border: 1px dashed #666; margin-bottom: 8px;">
                                 <div style="font-size: 0.7rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Probabilità Storica (Buy Signal)</div>
                                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
@@ -565,7 +564,6 @@ def main():
                                     <span style="font-weight:bold;">90G: {w90:.0f}% <span style="color:{'green' if p90>=0 else 'red'};">({p90:.1f}%)</span></span>
                                 </div>
                             </div>
-                            
                             <div style="padding: 8px; background-color: rgba(255,255,255,0.6); border-radius: 6px; border: 1px dashed #666;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
                                     <span style="color: #006400;">✅ Tgt: <b>${tgt:.0f}</b></span>
@@ -1052,6 +1050,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
