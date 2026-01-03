@@ -40,64 +40,42 @@ start_bot_singleton()
 # --- 3. STILI CSS COMPLETI ---
 st.markdown("""
 <style>
-    /* 1. NASCONDI ELEMENTI SPECIFICI */
+    /* 1. NASCONDI ELEMENTI STANDARD */
     #MainMenu {visibility: hidden;}
     .stDeployButton {display: none;}
     footer {visibility: hidden;}
-    [data-testid="stDecoration"] {display: none;}
-    .stStatusWidget {display: none;}
     header { background: transparent !important; }
 
-    /* 2. STILI PERSONALIZZATI APP */
-    [data-testid="stMetricValue"] { font-size: 1.8rem; }
-    div[data-testid="stExpander"] div[role="button"] p { font-size: 1.1rem; font-weight: 600; }
+    /* 2. CARD STYLES */
     .suggestion-box { 
         padding: 15px; 
-        border-radius: 10px; 
+        border-radius: 12px; 
         border-left: 5px solid; 
-        margin-bottom: 10px; 
-        /* Regola la larghezza per i dispositivi stretti (utile per Portafoglio) */
-        width: 100% !important; 
+        margin-bottom: 15px; 
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
-    .tx-row { padding: 10px; border-bottom: 1px solid #333; }
-    .stButton button { width: 100%; }
 
-    /* --- MOBILE RESPONSIVE FIXES (NUOVE REGOLE) --- */
+    /* 3. MOBILE OPTIMIZATIONS */
     @media (max-width: 768px) {
-        
-        /* 1. Forza le colonne dei CONSIGLI/PORTAFOGLIO a impilarsi */
-        /* Questo targetta i contenitori che usano st.columns per le metriche e le card */
-        [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* 2. Forza le metriche a prendere l'intera larghezza e ad allinearsi */
+        /* Forza le metriche su una riga se ci stanno, o a capo ordinatamente */
         [data-testid="stMetric"] {
-            width: 100% !important;
-            margin-bottom: 15px; /* Aggiunge spazio verticale tra le metriche impilate */
+            background-color: #f9f9f9;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            text-align: center;
         }
         
-        /* 3. Aggiusta la dimensione del font e spaziatura per i titoli */
-        .suggestion-box h4 { font-size: 1.2rem !important; }
-        .suggestion-box h3 { font-size: 1.5rem !important; }
-
-        /* 4. Aggiusta la visualizzazione delle colonne di login */
-        [data-testid="stHorizontalBlock"] > div > [data-testid="stVerticalBlock"] {
-            width: 100% !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-        }
-
-        /* 5. Aggiusta il layout a due colonne (Portafoglio e Storico) */
-        /* C_L, C_A nel Portafoglio: fa sì che la colonna "Aggiungi Transazione" sia sotto */
-        [data-testid="stHorizontalBlock"] > div:nth-child(1) {
-            order: 2; /* Sposta il riquadro di aggiunta in basso */
-        }
-        [data-testid="stHorizontalBlock"] > div:nth-child(2) {
-            order: 1; /* Lascia lo storico transazioni in alto */
-            width: 100% !important;
-        }
+        /* Tabelle più leggibili su mobile */
+        [data-testid="stDataFrame"] { font-size: 0.8rem; }
+        
+        /* I grafici prendono tutto lo spazio */
+        .js-plotly-plot { width: 100% !important; }
+        
+        /* Titoli più piccoli su mobile */
+        h1 { font-size: 1.8rem !important; }
+        h2 { font-size: 1.5rem !important; }
+        h3 { font-size: 1.2rem !important; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -458,6 +436,9 @@ def main():
 
     # --- 2. PORTAFOGLIO ---
     elif page == "💼 Portafoglio":
+        # Importiamo qui le funzioni helper per lo storico (assicurati siano in logic.py)
+        from logic import get_historical_portfolio_value, generate_excel_report
+        
         if 'tx_page' not in st.session_state: st.session_state.tx_page = 0
         
         c_title, c_btn = st.columns([3, 1])
@@ -467,232 +448,233 @@ def main():
                 st.cache_data.clear()
                 st.rerun()
         
+        # Recupera dati dal DB
         pf, history = db.get_portfolio_summary(user)
+        raw_tx = db.get_all_transactions(user) # Serve per il grafico storico
         
-        # --- CALCOLO TOTALE PORTAFOGLIO ---
-        tot_val = 0 # Variabile fondamentale, usata dopo
-        if pf:
-            tickers = list(pf.keys())
-            market_data = get_data(tickers)
+        # --- CALCOLO TOTALE E DATI MERCATO ---
+        # 1. Identifichiamo tutti i ticker mai toccati (per lo storico) + quelli attuali
+        tickers_current = list(pf.keys())
+        tickers_history = list(set([t[1] for t in raw_tx])) if raw_tx else []
+        all_tickers = list(set(tickers_current + tickers_history))
+        
+        market_data = get_data(all_tickers)
+        
+        tot_val = 0 # Valore totale attuale
+        tot_cost = 0 # Costo totale attuale
+        pie_data = [] # Dati per grafico a torta
+        
+        # Aggiorniamo i dati del portafoglio attuale con i prezzi live
+        for t in tickers_current:
+            cur = market_data[t]['Close'].iloc[-1] if t in market_data else pf[t]['avg_price']
+            val = pf[t]['qty'] * cur
             
-            pie_data = []
-            tot_cost = 0
+            pf[t]['cur_price'] = cur
+            pf[t]['pnl'] = val - pf[t]['total_cost'] 
+            pf[t]['pnl_pct'] = (pf[t]['pnl'] / pf[t]['total_cost'] * 100) if pf[t]['total_cost'] > 0 else 0
             
-            for t in tickers:
-                cur = market_data[t]['Close'].iloc[-1] if t in market_data else pf[t]['avg_price']
-                val = pf[t]['qty'] * cur
-                pf[t]['cur_price'] = cur
-                pf[t]['pnl'] = val - pf[t]['total_cost'] 
-                pf[t]['pnl_pct'] = (pf[t]['pnl'] / pf[t]['total_cost'] * 100) if pf[t]['total_cost'] > 0 else 0
-                tot_val += val
-                tot_cost += pf[t]['total_cost']
-                pie_data.append({"Label": t, "Value": val})
+            tot_val += val
+            tot_cost += pf[t]['total_cost']
+            pie_data.append({"Label": t, "Value": val})
             
-            pnl_tot = tot_val - tot_cost
-            pnl_tot_pct = (pnl_tot/tot_cost*100) if tot_cost > 0 else 0
+        pnl_tot = tot_val - tot_cost
+        pnl_tot_pct = (pnl_tot/tot_cost*100) if tot_cost > 0 else 0
 
-            with st.container(border=True):
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Valore Portafoglio", f"€{tot_val:,.2f}")
-                m2.metric("Utile/Perdita Totale", f"€{pnl_tot:,.2f}", delta=f"{pnl_tot_pct:.2f}%")
-                m3.metric("Asset Diversi", len(pf))
+        # --- SEZIONE 1: METRICHE PRINCIPALI (Responsive) ---
+        with st.container():
+            # Stile personalizzato per card metriche
+            st.markdown("""
+            <style>
+            div[data-testid="metric-container"] {
+                background-color: #ffffff;
+                border: 1px solid #e0e0e0;
+                padding: 10px;
+                border-radius: 10px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            }
+            </style>
+            """, unsafe_allow_html=True)
             
-            st.subheader("💡 Strategia Operativa")
-            with st.expander("ℹ️ Legenda Comandi (Logica Dinamica)", expanded=False):
-                st.markdown("""
-                <div style="font-size: 0.85rem; line-height: 1.4; color: #333;">
-                    L'Advisor analizza ogni posizione in base alla volatilità dell'asset (ATR) e al Trend di fondo.
-                    <h5 style="margin-bottom:5px; margin-top:10px; color: #006400;">🟢 GESTIONE PROFITTI</h5>
-                    <ul style="padding-left: 20px; margin-bottom: 10px;">
-                        <li>🚀 <b>MOONBAG / TREND SANO:</b> Il profitto è solido e il trend è rialzista. La strategia migliore è non fare nulla e lasciar correre i guadagni.</li>
-                        <li>💰 <b>TAKE PROFIT / VENDI METÀ:</b> Il guadagno è ottimo ma l'RSI indica "euforia" o ipercomprato. Il sistema consiglia di incassare una parte per sicurezza.</li>
-                        <li>🚨 <b>INCASSA TUTTO / PROTEGGI:</b> Avevi un ottimo guadagno ma il Trend è cambiato in Negativo (Bear). Priorità assoluta: portare a casa i soldi prima che spariscano.</li>
-                        <li>⚠️ <b>ATTENZIONE (Break Even):</b> Sei in leggero utile ma il trend è brutto. Alza lo Stop Loss al tuo prezzo di ingresso per non rischiare di andare in rosso.</li>
-                        <li>✋ <b>MANTIENI:</b> Situazione stabile o movimento non significativo (rumore di mercato).</li>
-                    </ul>
-                    <h5 style="margin-bottom:5px; margin-top:10px; color: #8b0000;">🔴 GESTIONE PERDITE</h5>
-                    <ul style="padding-left: 20px; margin-bottom: 10px;">
-                        <li>🛒 <b>MEDIA IL PREZZO (Accumulo):</b> Sei in perdita, MA il trend di lungo periodo è positivo e il prezzo è a sconto. È un'opportunità matematica per abbassare il tuo prezzo medio.</li>
-                        <li>⚠️ <b>VALUTA VENDITA (Cut Loss):</b> Sei in perdita e il trend è negativo. Non ci sono segnali di ripresa. La statistica suggerisce di tagliare la perdita (Stop Loss) per salvare il capitale residuo.</li>
-                    </ul>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            valid_pf = [item for item in pf.items() if item[0] in market_data]
-            sorted_pf = sorted(valid_pf, key=lambda x: x[1]['pnl_pct'])
-            
-            if sorted_pf:
-                cols_adv = st.columns(3)
-                for i, (sym, dat) in enumerate(sorted_pf):
-                    asset_name = get_asset_name(sym)
-                    tit, adv, col = generate_portfolio_advice(market_data[sym], dat['avg_price'], dat['cur_price'])
-                    _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90, conf = evaluate_strategy_full(market_data[sym])
-                    
-                    val_attuale_asset = dat['qty'] * dat['cur_price']
-                    # FIX: Uso tot_val (calcolato sopra) invece di tot_val_portfolio
-                    percentuale_allocazione = (val_attuale_asset / tot_val * 100) if tot_val > 0 else 0
-                    
-                    with cols_adv[i % 3]:
-                        st.markdown(f"""
-                            <div class="suggestion-box" style="background-color:{col}; border: 1px solid #bbb; min-height: 280px;">
-                                <div style="display:flex; justify-content:space-between;">
-                                    <div>
-                                        <strong>{sym}</strong>
-                                        <div style="font-size:0.7rem; color:#666; margin-top:-2px;">{asset_name}</div> 
-                                    </div>
-                                    <span style="color:{'green' if dat['pnl_pct']>=0 else 'red'}; font-weight:bold;">{dat['pnl_pct']:.1f}%</span>
-                                </div>
-                                <h3 style="color:#222; margin:5px 0;">{tit}
-                                    <span style="float: right; background-color: #388e3c; color: white; padding: 4px 8px; border-radius: 5px; font-size: 1.1rem;">
-                                        🎯 {conf}/100
-                                    </span>
-                                </h3>
-                                <p style="font-size:0.9rem; margin-bottom: 5px;">{adv}</p>
-                                <hr style="margin: 5px 0; border-color: rgba(0,0,0,0.1);">
-                                <div style="font-size: 0.8rem; display: flex; justify-content: space-between; margin-bottom: 5px;">
-                                    <span>Prezzo: €{dat['cur_price']:.2f}</span>
-                                    <span>Tot: <b>€{val_attuale_asset:,.0f}</b></span>
-                                </div>
-                                <div style="font-size: 0.8rem; text-align: right; margin-bottom: 10px;">Allocazione: <b>{percentuale_allocazione:.1f}%</b></div>
-                                <div style="padding: 8px; background-color: rgba(255,255,255,0.8); border-radius: 6px; border: 1px dashed #666; margin-bottom: 8px;">
-                                    <div style="font-size: 0.7rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Probabilità Storica (Buy Signal)</div>
-                                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
-                                        <span style="font-weight:bold;">30G: {w30:.0f}% <span style="color:{'green' if p30>=0 else 'red'};">({p30:.1f}%)</span></span>
-                                        <span style="font-weight:bold;">60G: {w60:.0f}% <span style="color:{'green' if p60>=0 else 'red'};">({p60:.1f}%)</span></span>
-                                        <span style="font-weight:bold;">90G: {w90:.0f}% <span style="color:{'green' if p90>=0 else 'red'};">({p90:.1f}%)</span></span>
-                                    </div>
-                                    <div style="text-align: center; font-size: 0.7rem; color: #777;">(Win Rate % / PnL Medio %)</div>
-                                </div>
-                                <div style="padding: 8px; background-color: rgba(255,255,255,0.6); border-radius: 6px; border: 1px dashed #666;">
-                                    <div style="font-size: 0.7rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Scenari Tecnici</div>
-                                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
-                                        <span style="color: #006400;">✅ <b>+{pot:.1f}%</b></span>
-                                        <span style="color: #333;">|</span>
-                                        <span style="color: #b30000;">🔻 <b>{risk_pot:.1f}%</b></span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #444; margin-top:2px;">
-                                        <span>Tgt: ${tgt:.0f}</span>
-                                        <span>Risk: ${risk_pr:.0f}</span>
-                                    </div>
-                                </div>
-                            </div>""", unsafe_allow_html=True)
-
-            st.divider()
-            c_pie, c_det = st.columns([1, 2])
-            with c_pie:
-                fig = go.Figure(data=[go.Pie(labels=[x['Label'] for x in pie_data], values=[x['Value'] for x in pie_data], hole=.4)])
-                fig.update_layout(margin=dict(t=0,b=0,l=0,r=0), height=250, showlegend=False)
-                st.plotly_chart(fig)
-            with c_det:
-                perf_df = pd.DataFrame([
-                    {
-                        "Asset": t, 
-                        "Costo Totale": pf[t]['total_cost'], 
-                        "Prezzo Medio": pf[t]['avg_price'], 
-                        "Prezzo Attuale": pf[t]['cur_price'], 
-                        "P&L %": pf[t]['pnl_pct'], 
-                        "Valore": pf[t]['qty'] * pf[t]['cur_price']
-                    } for t in tickers
-                ])
-                
-                st.dataframe(
-                    perf_df, 
-                    hide_index=True, 
-                    column_config={
-                        "P&L %": st.column_config.NumberColumn(format="%.2f%%"),
-                        "Valore": st.column_config.NumberColumn(format="€%.2f"),
-                        "Costo Totale": st.column_config.NumberColumn(format="€%.2f"),
-                        "Prezzo Attuale": st.column_config.NumberColumn(format="€%.2f"),
-                        "Prezzo Medio": st.column_config.NumberColumn(format="€%.2f")
-                    }
-                )
-        else: st.info("Portafoglio vuoto.")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Valore Attuale", f"€{tot_val:,.2f}")
+            m2.metric("P&L Totale", f"€{pnl_tot:,.2f}", delta=f"{pnl_tot_pct:.2f}%")
+            m3.metric("Liquidità Investita", f"€{tot_cost:,.2f}")
 
         st.divider()
-        
-        # --- MODIFICA TRANSAZIONE ---
-        if st.session_state.edit_tx_id:
-            tx = db.get_transaction_by_id(st.session_state.edit_tx_id)
-            if tx:
-                with st.form("edit"):
-                    st.write(f"Modifica {tx[1]} ({tx[5]})")
-                    c1,c2,c3,c4 = st.columns(4)
-                    nq = c1.number_input("Qta", value=float(tx[2]))
-                    np = c2.number_input("Prezzo", value=float(tx[3]))
-                    current_fee = float(tx[6]) if len(tx) > 6 and tx[6] is not None else 0.0
-                    nf = c3.number_input("Commissioni (€)", value=current_fee, step=0.5)
-                    nd = c4.date_input("Data", datetime.strptime(tx[4], '%Y-%m-%d').date())
-                    
-                    if st.form_submit_button("Salva Modifiche"): 
-                        db.update_transaction(tx[0], tx[1], nq, np, str(nd), tx[5], nf) 
-                        st.session_state.edit_tx_id=None; st.cache_data.clear(); st.rerun()
-                    if st.form_submit_button("Annulla"): st.session_state.edit_tx_id=None; st.rerun()
 
-        # --- STORICO TRANSAZIONI ---
-        c_l, c_a = st.columns([2, 1])
-        with c_l:
-            st.subheader("Storico Transazioni")
-            raw = db.get_all_transactions(user)
+        # --- SEZIONE 2: TABELLA DI MARCIA (TABS) ---
+        # Organizziamo in Tab per non avere una pagina infinita su mobile
+        tab_chart, tab_alloc, tab_tx = st.tabs(["📈 Andamento Storico", "🍰 Allocazione", "📝 Transazioni"])
+
+        # --- TAB A: GRAFICO STORICO ---
+        with tab_chart:
+            if raw_tx:
+                with st.spinner("Ricostruzione storico del portafoglio..."):
+                    df_hist = get_historical_portfolio_value(raw_tx, market_data)
+                
+                if not df_hist.empty:
+                    # Grafico Area
+                    fig_hist = go.Figure()
+                    fig_hist.add_trace(go.Scatter(
+                        x=df_hist.index, y=df_hist['Total Value'],
+                        mode='lines', name='Valore Portafoglio',
+                        line=dict(color='#004d40', width=2),
+                        fill='tozeroy', fillcolor='rgba(0, 77, 64, 0.1)'
+                    ))
+                    fig_hist.update_layout(
+                        title="Evoluzione del Capitale",
+                        template="plotly_white",
+                        height=350,
+                        margin=dict(l=10, r=10, t=40, b=10),
+                        hovermode="x unified"
+                    )
+                    st.plotly_chart(fig_hist, use_container_width=True)
+                    
+                    # Bottone Export Excel
+                    excel_data = generate_excel_report(df_hist, pf)
+                    st.download_button(
+                        label="📥 Scarica Report Excel Completo",
+                        data=excel_data,
+                        file_name=f"InvestAI_Report_{date.today()}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                else:
+                    st.warning("Non ci sono abbastanza dati storici per generare il grafico.")
+            else:
+                st.info("Aggiungi la tua prima transazione per vedere il grafico storico.")
+
+        # --- TAB B: ALLOCAZIONE & DETTAGLI ---
+        with tab_alloc:
+            if pie_data:
+                c_pie, c_list = st.columns([1, 1])
+                with c_pie:
+                    fig_pie = go.Figure(data=[go.Pie(
+                        labels=[x['Label'] for x in pie_data], 
+                        values=[x['Value'] for x in pie_data], 
+                        hole=.5,
+                        textinfo='label+percent',
+                        marker=dict(colors=['#004d40', '#00695c', '#00796b', '#00897b', '#26a69a', '#4db6ac'])
+                    )])
+                    fig_pie.update_layout(margin=dict(t=0,b=0,l=0,r=0), height=300, showlegend=False)
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                
+                with c_list:
+                    # Tabella riassuntiva pulita
+                    summary_df = pd.DataFrame([
+                        {"Asset": k, "Valore": v['cur_price']*v['qty'], "P&L": v['pnl_pct']} 
+                        for k,v in pf.items()
+                    ]).sort_values("Valore", ascending=False)
+                    
+                    st.dataframe(
+                        summary_df, 
+                        hide_index=True,
+                        column_config={
+                            "Valore": st.column_config.NumberColumn(format="€%.2f"),
+                            "P&L": st.column_config.NumberColumn(format="%.2f%%")
+                        },
+                        use_container_width=True
+                    )
+            else:
+                st.info("Portafoglio vuoto.")
+
+        # --- TAB C: GESTIONE TRANSAZIONI (Il tuo codice originale integrato) ---
+        with tab_tx:
+            # --- MODIFICA TRANSAZIONE (Form a scomparsa) ---
+            if st.session_state.edit_tx_id:
+                tx = db.get_transaction_by_id(st.session_state.edit_tx_id)
+                if tx:
+                    with st.container(border=True):
+                        st.subheader(f"✏️ Modifica: {tx[1]}")
+                        with st.form("edit"):
+                            c1,c2,c3,c4 = st.columns(4)
+                            nq = c1.number_input("Qta", value=float(tx[2]))
+                            np = c2.number_input("Prezzo", value=float(tx[3]))
+                            current_fee = float(tx[6]) if len(tx) > 6 and tx[6] is not None else 0.0
+                            nf = c3.number_input("Comm. (€)", value=current_fee, step=0.5)
+                            nd = c4.date_input("Data", datetime.strptime(tx[4], '%Y-%m-%d').date())
+                            
+                            c_s1, c_s2 = st.columns(2)
+                            if c_s1.form_submit_button("💾 Salva", type="primary", use_container_width=True): 
+                                db.update_transaction(tx[0], tx[1], nq, np, str(nd), tx[5], nf) 
+                                st.session_state.edit_tx_id=None; st.cache_data.clear(); st.rerun()
+                            if c_s2.form_submit_button("Annulla", use_container_width=True): 
+                                st.session_state.edit_tx_id=None; st.rerun()
+
+            c_l, c_a = st.columns([2, 1])
             
-            if raw:
-                search_query = st.text_input("🔍 Cerca transazione (Ticker o Data)", placeholder="Es. NVDA o 2023-10...").upper()
-                filtered_tx = [r for r in raw if search_query in r[1] or search_query in str(r[4])] if search_query else raw
-                
-                total_tx = len(filtered_tx)
-                st.caption(f"Totale transazioni trovate: **{total_tx}**")
-                
-                ITEMS_PER_PAGE = 10
-                start_idx = st.session_state.tx_page * ITEMS_PER_PAGE
-                end_idx = start_idx + ITEMS_PER_PAGE
-                
-                col_prev, col_page, col_next = st.columns([1, 2, 1])
-                with col_prev:
-                    if st.session_state.tx_page > 0:
-                        if st.button("⬅️ Prec"): st.session_state.tx_page -= 1; st.rerun()
-                with col_next:
-                    if end_idx < total_tx:
-                        if st.button("Succ ➡️"): st.session_state.tx_page += 1; st.rerun()
-                
-                view_tx = filtered_tx[start_idx:end_idx]
-
-                h1, h2, h3, h4, h5, h6 = st.columns([1.2, 1.5, 1, 1, 1, 1])
-                h1.markdown("**Data**"); h2.markdown("**Asset**"); h3.markdown("**Qta**"); h4.markdown("**Prezzo**"); h5.markdown("**Comm.**"); h6.markdown("**Azioni**")
-                st.divider()
-                
-                for r in view_tx:
-                    with st.container():
-                        c1, c2, c3, c4, c5, c6 = st.columns([1.2, 1.5, 1, 1, 1, 1])
-                        c1.write(r[4])
-                        c2.markdown(f":{'green' if r[5]=='BUY' else 'red'}[{r[5]}] **{r[1]}**")
-                        c3.write(f"{r[2]:.4f}")
-                        c4.write(f"€{r[3]:.2f}")
-                        fee_val = r[6] if len(r) > 6 and r[6] is not None else 0.0
-                        c5.write(f"€{fee_val:.2f}")
-                        
-                        b1, b2 = c6.columns(2)
-                        if b1.button("✏️", key=f"e{r[0]}", help="Modifica"): st.session_state.edit_tx_id=r[0]; st.rerun()
-                        if b2.button("❌", key=f"d{r[0]}", help="Elimina"): 
-                            confirm_delete_dialog(r[0])
-                        st.markdown("<hr style='margin:2px 0; border-top:1px solid #333;'>", unsafe_allow_html=True)
-            else: st.write("Nessuna transazione registrata.")
-
-        with c_a:
-            with st.expander("➕ Aggiungi Transazione", expanded=False):
-                with st.container(border=True):
-                    n_sym = st.selectbox("Asset", ["BTC-USD", "ETH-USD", "AAPL", "NVDA", "ALTRO"], key="ns")
-                    if n_sym == "ALTRO": n_sym = st.text_input("Ticker", key="ncs").upper()
-                    n_qty = st.number_input("Qta", min_value=0.0001, format="%.4f", key="nq")
-                    n_prc = st.number_input("Prezzo Unitario (€)", min_value=0.01, key="np")
-                    n_fee = st.number_input("Commissioni (€)", min_value=0.0, step=0.5, key="nf") 
-                    n_date = st.date_input("Data", date.today(), key="nd")
-                    n_type = st.selectbox("Tipo", ["BUY", "SELL"], key="nt")
+            # LISTA TRANSAZIONI
+            with c_l:
+                st.subheader("Cronologia")
+                if raw_tx:
+                    search_query = st.text_input("🔍 Cerca...", placeholder="Ticker o Data").upper()
+                    filtered_tx = [r for r in raw_tx if search_query in r[1] or search_query in str(r[4])] if search_query else raw_tx
                     
-                    if st.button("Salva Transazione", type="primary", width="stretch"):
-                        if validate_ticker(n_sym): 
-                            db.add_transaction(user, n_sym, n_qty, n_prc, str(n_date), n_type, n_fee)
-                            st.cache_data.clear()
-                            st.success("Fatto!"); st.rerun()
-                        else: st.error("Ticker invalido")
+                    # Paginazione
+                    ITEMS_PER_PAGE = 8
+                    total_tx = len(filtered_tx)
+                    start_idx = st.session_state.tx_page * ITEMS_PER_PAGE
+                    end_idx = start_idx + ITEMS_PER_PAGE
+                    
+                    # Header Tabella (Custom HTML per layout mobile migliore)
+                    st.markdown("""
+                    <div style="display: flex; font-weight: bold; padding: 5px 0; border-bottom: 2px solid #ddd; font-size: 0.85rem;">
+                        <div style="flex: 2;">Data</div>
+                        <div style="flex: 2;">Asset</div>
+                        <div style="flex: 2;">Prezzo</div>
+                        <div style="flex: 1; text-align: right;">Azioni</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    view_tx = filtered_tx[start_idx:end_idx]
+                    for r in view_tx:
+                        color_type = "green" if r[5]=='BUY' else "red"
+                        # Riga Tabella
+                        st.markdown(f"""
+                        <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 0.85rem;">
+                            <div style="flex: 2;">{r[4]}</div>
+                            <div style="flex: 2; color: {color_type}; font-weight: bold;">{r[5]} {r[1]}<br><span style="color:#666; font-weight:normal; font-size:0.75rem;">x{r[2]:.4f}</span></div>
+                            <div style="flex: 2;">€{r[3]:.2f}<br><span style="color:#999; font-size:0.7rem;">Fee: €{r[6]:.1f}</span></div>
+                            <div style="flex: 1; text-align: right;">
+                                </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Bottoni Azione (invisibili nell'HTML sopra, posizionati qui)
+                        c_b1, c_b2 = st.columns([0.85, 0.15])
+                        with c_b2:
+                            pop_col1, pop_col2 = st.columns(2)
+                            if pop_col1.button("✏️", key=f"e{r[0]}"): st.session_state.edit_tx_id=r[0]; st.rerun()
+                            if pop_col2.button("❌", key=f"d{r[0]}"): confirm_delete_dialog(r[0])
+                    
+                    # Controlli Paginazione
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    cp, cn = st.columns(2)
+                    if st.session_state.tx_page > 0:
+                        if cp.button("⬅️ Precedenti"): st.session_state.tx_page -= 1; st.rerun()
+                    if end_idx < total_tx:
+                        if cn.button("Successivi ➡️"): st.session_state.tx_page += 1; st.rerun()
+                else:
+                    st.write("Nessuna transazione.")
+
+            # AGGIUNTA TRANSAZIONE
+            with c_a:
+                with st.expander("➕ Aggiungi Nuova", expanded=False):
+                    with st.container(border=True):
+                        n_sym = st.selectbox("Asset", ["BTC-USD", "ETH-USD", "AAPL", "NVDA", "ALTRO"], key="ns")
+                        if n_sym == "ALTRO": n_sym = st.text_input("Ticker", key="ncs").upper()
+                        n_qty = st.number_input("Qta", min_value=0.0001, format="%.4f", key="nq")
+                        n_prc = st.number_input("Prezzo (€)", min_value=0.01, key="np")
+                        n_fee = st.number_input("Fee (€)", min_value=0.0, step=0.5, key="nf") 
+                        n_date = st.date_input("Data", date.today(), key="nd")
+                        n_type = st.selectbox("Tipo", ["BUY", "SELL"], key="nt")
+                        
+                        if st.button("Salva", type="primary", width="stretch"):
+                            if validate_ticker(n_sym): 
+                                db.add_transaction(user, n_sym, n_qty, n_prc, str(n_date), n_type, n_fee)
+                                st.cache_data.clear()
+                                st.success("Fatto!"); st.rerun()
+                            else: st.error("Ticker invalido")
 
     # --- 3. CONSIGLI OPERATIVI ---
     elif page == "💡 Consigli":
@@ -994,6 +976,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
