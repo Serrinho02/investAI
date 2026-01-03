@@ -784,7 +784,7 @@ def generate_enhanced_excel_report(df_hist, current_portfolio):
         # --- FORMATI ---
         fmt_currency = workbook.add_format({'num_format': '€ #,##0.00'})
         fmt_pct = workbook.add_format({'num_format': '0.00%'})
-        fmt_header = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1})
+        # fmt_header = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'border': 1}) # Opzionale
         fmt_green = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'num_format': '0.00%'})
         fmt_red = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'num_format': '0.00%'})
 
@@ -797,37 +797,39 @@ def generate_enhanced_excel_report(df_hist, current_portfolio):
         ws_hist.set_column(1, len(df_hist.columns), 12, fmt_currency)
         
         # Crea il Grafico Excel (Total Value)
-        max_row = len(df_hist) + 1
-        chart = workbook.add_chart({'type': 'line'})
-        chart.add_series({
-            'name':       '=Storico!$B$1',      # Intestazione "Total Value"
-            'categories': f'=Storico!$A$2:$A${max_row}', # Date
-            'values':     f'=Storico!$B$2:$B${max_row}', # Valori
-            'line':       {'color': '#004d40', 'width': 2.25},
-        })
-        chart.set_title({'name': 'Andamento Portafoglio'})
-        chart.set_size({'width': 800, 'height': 400})
-        ws_hist.insert_chart('E2', chart) # Inserisce il grafico alla cella E2
+        # Nota: XlsxWriter non gestisce bene i grafici se il dataframe è vuoto, ma qui df_hist ha dati
+        if len(df_hist) > 0:
+            max_row = len(df_hist) + 1
+            chart = workbook.add_chart({'type': 'line'})
+            chart.add_series({
+                'name':       '=Storico!$B$1',      # Intestazione "Total Value"
+                'categories': f'=Storico!$A$2:$A${max_row}', # Date
+                'values':     f'=Storico!$B$2:$B${max_row}', # Valori
+                'line':       {'color': '#004d40', 'width': 2.25},
+            })
+            chart.set_title({'name': 'Andamento Portafoglio'})
+            chart.set_size({'width': 800, 'height': 400})
+            ws_hist.insert_chart('E2', chart)
 
         # --- FOGLIO 2: VARIAZIONI % GIORNALIERE ---
         # Calcolo variazioni percentuali
         df_pct = df_hist.pct_change().dropna()
-        df_pct.to_excel(writer, sheet_name='Performance Giornaliera')
-        ws_pct = writer.sheets['Performance Giornaliera']
-        
-        ws_pct.set_column(0, 0, 15)
-        
-        # Applica Formattazione Condizionale (Verde se > 0, Rosso se < 0)
-        # B2:end_col/end_row
-        start_row = 1
-        start_col = 1
-        end_row = len(df_pct) + 1
-        end_col = len(df_pct.columns)
-        
-        ws_pct.cond_format(start_row, start_col, end_row, end_col,
-                           {'type': 'cell', 'criteria': '>', 'value': 0, 'format': fmt_green})
-        ws_pct.cond_format(start_row, start_col, end_row, end_col,
-                           {'type': 'cell', 'criteria': '<', 'value': 0, 'format': fmt_red})
+        if not df_pct.empty:
+            df_pct.to_excel(writer, sheet_name='Performance Giornaliera')
+            ws_pct = writer.sheets['Performance Giornaliera']
+            
+            ws_pct.set_column(0, 0, 15)
+            
+            # Applica Formattazione Condizionale (CORRETTO: conditional_format)
+            start_row = 1
+            start_col = 1
+            end_row = len(df_pct) + 1
+            end_col = len(df_pct.columns)
+            
+            ws_pct.conditional_format(start_row, start_col, end_row, end_col,
+                               {'type': 'cell', 'criteria': '>', 'value': 0, 'format': fmt_green})
+            ws_pct.conditional_format(start_row, start_col, end_row, end_col,
+                               {'type': 'cell', 'criteria': '<', 'value': 0, 'format': fmt_red})
         
         # --- FOGLIO 3: PORTAFOGLIO ATTUALE ---
         # Convertiamo il dizionario in DF
@@ -841,44 +843,26 @@ def generate_enhanced_excel_report(df_hist, current_portfolio):
                 "Valore Totale": v['qty'] * v['cur_price'],
                 "P&L %": v['pnl_pct'] / 100
             })
-        df_pf = pd.DataFrame(data_pf)
-        df_pf.to_excel(writer, sheet_name='Portafoglio', index=False)
         
-        ws_pf = writer.sheets['Portafoglio']
-        ws_pf.set_column('A:A', 15)
-        ws_pf.set_column('B:E', 12, fmt_currency)
-        ws_pf.set_column('F:F', 10, fmt_pct)
-        
-        # Grafico a Torta in Excel
-        chart_pie = workbook.add_chart({'type': 'pie'})
-        chart_pie.add_series({
-            'name': 'Allocazione',
-            'categories': f'=Portafoglio!$A$2:$A${len(df_pf)+1}',
-            'values':     f'=Portafoglio!$E$2:$E${len(df_pf)+1}',
-        })
-        ws_pf.insert_chart('H2', chart_pie)
+        if data_pf:
+            df_pf = pd.DataFrame(data_pf)
+            df_pf.to_excel(writer, sheet_name='Portafoglio', index=False)
+            
+            ws_pf = writer.sheets['Portafoglio']
+            ws_pf.set_column('A:A', 15)
+            ws_pf.set_column('B:E', 12, fmt_currency)
+            ws_pf.set_column('F:F', 10, fmt_pct)
+            
+            # Grafico a Torta in Excel
+            chart_pie = workbook.add_chart({'type': 'pie'})
+            chart_pie.add_series({
+                'name': 'Allocazione',
+                'categories': f'=Portafoglio!$A$2:$A${len(df_pf)+1}',
+                'values':     f'=Portafoglio!$E$2:$E${len(df_pf)+1}',
+            })
+            ws_pf.insert_chart('H2', chart_pie)
 
     return output.getvalue()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
