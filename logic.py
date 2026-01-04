@@ -678,12 +678,13 @@ def get_historical_portfolio_value(transactions, market_data_history):
     df_history = pd.DataFrame(history_records, index=date_range)
     return df_history
 
-def generate_enhanced_excel_report(df_hist, current_portfolio):
+def generate_enhanced_excel_report(df_hist, current_portfolio, transactions_list=None):
     """
     Genera un Excel professionale con:
     1. Foglio 'Dati Storici': Tabella completa con valori, investito, utile e % giornaliera.
     2. Foglio 'Portafoglio': Situazione attuale asset per asset.
     3. Foglio 'Dashboard Grafici': Solo grafici riassuntivi.
+    4. Foglio 'Transazioni': Registro completo operazioni.
     """
     from io import BytesIO
     import pandas as pd
@@ -713,6 +714,9 @@ def generate_enhanced_excel_report(df_hist, current_portfolio):
         
         fmt_curr_green = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'num_format': '€ #,##0.00'})
         fmt_curr_red = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'num_format': '€ #,##0.00'})
+        
+        fmt_txt_green = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'bold': True})
+        fmt_txt_red = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'bold': True})
 
         # ==========================================
         # FOGLIO 1: DATI STORICI
@@ -723,7 +727,7 @@ def generate_enhanced_excel_report(df_hist, current_portfolio):
         
         last_row = len(df_final_hist) + 1
         
-        ws_hist.set_column(0, 0, 15) # Data
+        ws_hist.set_column(0, 0, 15) 
         ws_hist.set_column(1, 3, 20, fmt_currency) 
         ws_hist.set_column(4, 4, 15, fmt_pct)
         ws_hist.set_column(5, len(df_final_hist.columns), 15, fmt_currency)
@@ -741,8 +745,6 @@ def generate_enhanced_excel_report(df_hist, current_portfolio):
         data_pf = []
         
         for k, v in current_portfolio.items():
-            # FIX: Uso .get() per evitare KeyError se 'cur_price' non esiste ancora
-            # Se manca il prezzo attuale, usiamo il prezzo medio come fallback
             price_now = v.get('cur_price', v.get('avg_price', 0.0))
             qty = v.get('qty', 0.0)
             pnl_val = v.get('pnl_pct', 0.0)
@@ -775,7 +777,6 @@ def generate_enhanced_excel_report(df_hist, current_portfolio):
         sheet_dash_name = 'Dashboard Grafici'
         ws_dash = workbook.add_worksheet(sheet_dash_name)
         ws_dash.hide_gridlines(2)
-        
         ws_dash.write('B2', "Report Finanziario - InvestAI", workbook.add_format({'bold': True, 'font_size': 18, 'font_color': '#004d40'}))
 
         if len(df_final_hist) > 0:
@@ -823,6 +824,53 @@ def generate_enhanced_excel_report(df_hist, current_portfolio):
             chart_pie.set_size({'width': 400, 'height': 350})
             ws_dash.insert_chart('O4', chart_pie)
 
+        # ==========================================
+        # FOGLIO 4: TRANSAZIONI
+        # ==========================================
+        if transactions_list:
+            # Creazione DF da lista di tuple/dizionari
+            # La struttura attesa è tuple: (id, symbol, qty, price, date, type, fee)
+            df_tx = pd.DataFrame(transactions_list, columns=['ID', 'Asset', 'Qta', 'Prezzo', 'Data', 'Tipo', 'Fee'])
+            
+            # Calcolo Totale Transazione
+            df_tx['Totale (€)'] = (df_tx['Qta'] * df_tx['Prezzo']) + df_tx['Fee']
+            
+            # Ordinamento e pulizia data
+            df_tx['Data'] = pd.to_datetime(df_tx['Data']).dt.strftime('%Y-%m-%d')
+            df_tx.sort_values('Data', ascending=False, inplace=True)
+            
+            # Scrittura
+            sheet_tx_name = 'Transazioni'
+            df_tx.to_excel(writer, sheet_name=sheet_tx_name, index=False)
+            ws_tx = writer.sheets[sheet_tx_name]
+            
+            # Larghezze
+            ws_tx.set_column('A:A', 5)  # ID
+            ws_tx.set_column('B:B', 10) # Asset
+            ws_tx.set_column('C:C', 10) # Qta
+            ws_tx.set_column('D:D', 12, fmt_currency) # Prezzo
+            ws_tx.set_column('E:E', 12) # Data
+            ws_tx.set_column('F:F', 8)  # Tipo
+            ws_tx.set_column('G:G', 10, fmt_currency) # Fee
+            ws_tx.set_column('H:H', 15, fmt_currency) # Totale
+            
+            # Formattazione Condizionale (Verde per BUY, Rosso per SELL)
+            # Colonna F (Tipo) è indice 5 (0-based)
+            tx_len = len(df_tx) + 1
+            ws_tx.conditional_format(1, 5, tx_len, 5, {
+                'type': 'cell',
+                'criteria': '==',
+                'value': '"BUY"',
+                'format': fmt_txt_green
+            })
+            ws_tx.conditional_format(1, 5, tx_len, 5, {
+                'type': 'cell',
+                'criteria': '==',
+                'value': '"SELL"',
+                'format': fmt_txt_red
+            })
+
     return output.getvalue()
+
 
 
