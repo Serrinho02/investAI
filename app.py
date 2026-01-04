@@ -535,6 +535,42 @@ def main():
         # --- STRATEGIA OPERATIVA (Card) ---
         st.divider()
         st.subheader("💡 Strategia Operativa")
+
+        # --- LEGENDA (INSERIRE QUI) ---
+        with st.expander("ℹ️ Legenda: Come leggere i Consigli e i Dati", expanded=False):
+            st.markdown("""
+            <div style="font-size: 0.9rem; line-height: 1.6;">
+                <h4 style="color: #004d40; margin-bottom: 10px;">🤖 Gli Stati Operativi (Cosa fare)</h4>
+                <ul style="list-style-type: none; padding-left: 0;">
+                    <li style="margin-bottom: 8px;">🚀 <b>MOONBAG (Trailing Stop):</b> Hai un ottimo profitto e il trend è fortissimo. <b>Non vendere!</b> Usa solo il Trailing Stop per proteggerti e lascia correre i guadagni.</li>
+                    <li style="margin-bottom: 8px;">📈 <b>TREND SANO:</b> Il prezzo sale in modo costante senza eccessi. Mantieni la posizione tranquillamente.</li>
+                    <li style="margin-bottom: 8px;">💰 <b>TAKE PROFIT / VENDI METÀ:</b> Il prezzo è salito troppo velocemente (RSI alto). È saggio incassare una parte dei profitti ora.</li>
+                    <li style="margin-bottom: 8px;">🛡️ <b>PROTEGGI / INCASSA:</b> Eri in profitto ma il trend è cambiato in Ribassista. Esci prima che il guadagno sparisca.</li>
+                    <li style="margin-bottom: 8px;">💎 <b>ACCUMULO FORTE:</b> Sei in perdita, ma il trend di fondo è Rialzista e ci sono volumi di acquisto. Ottimo momento per mediare il prezzo (DCA).</li>
+                    <li style="margin-bottom: 8px;">🔪 <b>COLTELLO CHE CADE (Falling Knife):</b> Sei in perdita e il trend è Ribassista. <b>Non comprare!</b> È rischioso, il prezzo potrebbe scendere ancora.</li>
+                </ul>
+                <hr style="margin: 15px 0; opacity: 0.2;">
+                <h4 style="color: #004d40; margin-bottom: 10px;">📊 Indicatori e Livelli</h4>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td width="30%"><b>RSI</b></td>
+                        <td>Indice di Forza Relativa. <b>>70</b>: Caro (Ipercomprato). <b><30</b>: Economico (Ipervenduto).</td>
+                    </tr>
+                    <tr>
+                        <td><b>Dai Massimi</b></td>
+                        <td>Quanto il prezzo è sceso rispetto al picco recente (Drawdown). Utile per capire se è uno sconto o un crollo.</td>
+                    </tr>
+                    <tr>
+                        <td><b>🛡️ Trailing Stop</b></td>
+                        <td>(Chandelier Exit). Uno "Stop Loss" dinamico che sale quando il prezzo sale. Se il prezzo scende sotto questo livello, il trend è tecnicamente finito.</td>
+                    </tr>
+                    <tr>
+                        <td><b>🛑 Supporto</b></td>
+                        <td>Livello di prezzo inferiore dove storicamente i compratori intervengono. Se rotto, si scende.</td>
+                    </tr>
+                </table>
+            </div>
+            """, unsafe_allow_html=True)
         
         valid_pf = [item for item in pf.items() if item[0] in market_data]
         sorted_pf = sorted(valid_pf, key=lambda x: x[1]['pnl_pct'])
@@ -1075,6 +1111,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
