@@ -140,7 +140,19 @@ def create_modern_chart(df, ticker, trend_label):
         xaxis_rangeslider_visible=False
     )
     return fig
-
+    
+# --- HELPER PER NOMI ASSET ---
+def get_asset_name(ticker):
+    # 1. Cerca nella nostra lista predefinita (Invertiamo il dizionario per cercare per valore)
+    # POPULAR_ASSETS è {Nome: Ticker}, noi vogliamo Ticker -> Nome
+    reversed_assets = {v: k for k, v in POPULAR_ASSETS.items()}
+    if ticker in reversed_assets:
+        return reversed_assets[ticker]
+    
+    # 2. Se non trovato, proviamo a scaricarlo (cache) o ritorniamo il ticker stesso
+    # Per semplicità e velocità, ritorniamo il ticker se non è nella lista popolare
+    return ticker
+    
 # --- MAIN APP ---
 def main():
     if 'user' not in st.session_state: 
@@ -1059,6 +1071,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
