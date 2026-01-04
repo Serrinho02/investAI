@@ -678,64 +678,74 @@ def get_historical_portfolio_value(transactions, market_data_history):
     df_history = pd.DataFrame(history_records, index=date_range)
     return df_history
 
-# --- EXCEL REPORT MIGLIORATO ---
 def generate_enhanced_excel_report(df_hist, current_portfolio):
     """
-    Report Excel con grafici nativi e formattazione condizionale.
+    Genera un Excel professionale con:
+    1. Foglio 'Dati Storici': Tabella completa con valori, investito, utile e % giornaliera.
+    2. Foglio 'Portafoglio': Situazione attuale asset per asset.
+    3. Foglio 'Dashboard Grafici': Solo grafici riassuntivi.
     """
     from io import BytesIO
+    import pandas as pd
     
     output = BytesIO()
     
+    # Pre-calcoli sui dati storici per arricchire la tabella
+    # Assicuriamoci di avere le colonne calcolate
+    if 'Total Invested' not in df_hist.columns:
+        df_hist['Total Invested'] = 0.0 # Fallback se manca
+    
+    df_hist['Utile Netto (€)'] = df_hist['Total Value'] - df_hist['Total Invested']
+    df_hist['Performance %'] = df_hist['Total Value'].pct_change().fillna(0)
+    
+    # Riorganizziamo le colonne: Prima i totali, poi i singoli asset
+    cols_main = ['Total Value', 'Total Invested', 'Utile Netto (€)', 'Performance %']
+    cols_assets = [c for c in df_hist.columns if c not in cols_main]
+    df_final_hist = df_hist[cols_main + cols_assets]
+
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         workbook = writer.book
         
-        # Formati
+        # --- DEFINIZIONE FORMATI ---
+        fmt_header = workbook.add_format({
+            'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#D7E4BC', 'border': 1})
         fmt_currency = workbook.add_format({'num_format': '€ #,##0.00'})
         fmt_pct = workbook.add_format({'num_format': '0.00%'})
+        
+        # Formattazione condizionale (Verde/Rosso per testo e sfondo chiaro)
         fmt_green = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'num_format': '0.00%'})
         fmt_red = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'num_format': '0.00%'})
+        
+        fmt_curr_green = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100', 'num_format': '€ #,##0.00'})
+        fmt_curr_red = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006', 'num_format': '€ #,##0.00'})
 
-        # FOGLIO 1: STORICO
-        df_hist.to_excel(writer, sheet_name='Storico', index=True)
-        ws_hist = writer.sheets['Storico']
+        # ==========================================
+        # FOGLIO 1: DATI STORICI
+        # ==========================================
+        sheet_hist_name = 'Dati Storici'
+        df_final_hist.to_excel(writer, sheet_name=sheet_hist_name, index=True)
+        ws_hist = writer.sheets[sheet_hist_name]
         
-        ws_hist.set_column(0, 0, 15)
-        ws_hist.set_column(1, len(df_hist.columns), 12, fmt_currency)
+        last_row = len(df_final_hist) + 1
         
-        # Grafico
-        if len(df_hist) > 0:
-            max_row = len(df_hist) + 1
-            chart = workbook.add_chart({'type': 'line'})
-            chart.add_series({
-                'name': '=Storico!$B$1',
-                'categories': f'=Storico!$A$2:$A${max_row}',
-                'values': f'=Storico!$B$2:$B${max_row}',
-                'line': {'color': '#004d40', 'width': 2.25},
-            })
-            chart.set_title({'name': 'Andamento Portafoglio'})
-            chart.set_size({'width': 800, 'height': 400})
-            ws_hist.insert_chart('E2', chart)
+        # Larghezza colonne (Data + Totali larghe, Asset normali)
+        ws_hist.set_column(0, 0, 15) # Data
+        ws_hist.set_column(1, 3, 20, fmt_currency) # Valore, Investito, Utile
+        ws_hist.set_column(4, 4, 15, fmt_pct) # Performance %
+        ws_hist.set_column(5, len(df_final_hist.columns), 15, fmt_currency) # Asset singoli
+        
+        # Formattazione Condizionale su "Performance %" (Colonna E -> Indice 4)
+        ws_hist.conditional_format(1, 4, last_row, 4, {'type': 'cell', 'criteria': '>', 'value': 0, 'format': fmt_green})
+        ws_hist.conditional_format(1, 4, last_row, 4, {'type': 'cell', 'criteria': '<', 'value': 0, 'format': fmt_red})
 
-        # FOGLIO 2: PERFORMANCE
-        df_pct = df_hist.pct_change().dropna()
-        if not df_pct.empty:
-            df_pct.to_excel(writer, sheet_name='Performance')
-            ws_pct = writer.sheets['Performance']
-            
-            ws_pct.set_column(0, 0, 15)
-            
-            start_row = 1
-            start_col = 1
-            end_row = len(df_pct) + 1
-            end_col = len(df_pct.columns)
-            
-            ws_pct.conditional_format(start_row, start_col, end_row, end_col,
-                               {'type': 'cell', 'criteria': '>', 'value': 0, 'format': fmt_green})
-            ws_pct.conditional_format(start_row, start_col, end_row, end_col,
-                               {'type': 'cell', 'criteria': '<', 'value': 0, 'format': fmt_red})
-        
-        # FOGLIO 3: PORTAFOGLIO
+        # Formattazione Condizionale su "Utile Netto" (Colonna D -> Indice 3)
+        ws_hist.conditional_format(1, 3, last_row, 3, {'type': 'cell', 'criteria': '>', 'value': 0, 'format': fmt_curr_green})
+        ws_hist.conditional_format(1, 3, last_row, 3, {'type': 'cell', 'criteria': '<', 'value': 0, 'format': fmt_curr_red})
+
+        # ==========================================
+        # FOGLIO 2: PORTAFOGLIO ATTUALE
+        # ==========================================
+        sheet_pf_name = 'Portafoglio'
         data_pf = []
         for k, v in current_portfolio.items():
             data_pf.append({
@@ -749,20 +759,93 @@ def generate_enhanced_excel_report(df_hist, current_portfolio):
         
         if data_pf:
             df_pf = pd.DataFrame(data_pf)
-            df_pf.to_excel(writer, sheet_name='Portafoglio', index=False)
+            df_pf.to_excel(writer, sheet_name=sheet_pf_name, index=False)
+            ws_pf = writer.sheets[sheet_pf_name]
             
-            ws_pf = writer.sheets['Portafoglio']
-            ws_pf.set_column('A:A', 15)
-            ws_pf.set_column('B:E', 12, fmt_currency)
-            ws_pf.set_column('F:F', 10, fmt_pct)
+            # Larghezza colonne
+            ws_pf.set_column('A:A', 15) # Asset
+            ws_pf.set_column('B:B', 12) # Qty
+            ws_pf.set_column('C:E', 18, fmt_currency) # Prezzi
+            ws_pf.set_column('F:F', 12, fmt_pct) # P&L
             
-            # Grafico a torta
-            chart_pie = workbook.add_chart({'type': 'pie'})
+            # Condizionale su P&L %
+            ws_pf.conditional_format(1, 5, len(df_pf), 5, {'type': 'cell', 'criteria': '>', 'value': 0, 'format': fmt_green})
+            ws_pf.conditional_format(1, 5, len(df_pf), 5, {'type': 'cell', 'criteria': '<', 'value': 0, 'format': fmt_red})
+
+        # ==========================================
+        # FOGLIO 3: DASHBOARD GRAFICI
+        # ==========================================
+        sheet_dash_name = 'Dashboard Grafici'
+        ws_dash = workbook.add_worksheet(sheet_dash_name)
+        ws_dash.hide_gridlines(2) # Nascondi griglia per estetica
+        
+        # TITOLO DASHBOARD
+        ws_dash.write('B2', "Report Finanziario - InvestAI", workbook.add_format({'bold': True, 'font_size': 18, 'font_color': '#004d40'}))
+
+        # --- GRAFICO 1: EVOLUZIONE CAPITALE (Valore vs Investito) ---
+        if len(df_final_hist) > 0:
+            chart_evo = workbook.add_chart({'type': 'area'})
+            
+            # Serie 1: Valore Totale (Area Verde)
+            chart_evo.add_series({
+                'name':       'Valore Portafoglio',
+                'categories': f"='{sheet_hist_name}'!$A$2:$A${last_row}",
+                'values':     f"='{sheet_hist_name}'!$B$2:$B${last_row}",
+                'fill':       {'color': '#b2dfdb', 'transparency': 50},
+                'line':       {'color': '#004d40'}
+            })
+            
+            # Serie 2: Investito (Linea Rossa) - Aggiunta come asse secondario o linea sovrapposta
+            # Nota: In Excel base via Python, combinare area+linea è complesso. 
+            # Usiamo 'area' per il valore, e aggiungiamo l'investito come seconda serie (apparirà come area sovrapposta).
+            # Per farlo "Linea", dovremmo usare 'type': 'line' per tutto o 'stock'. 
+            # Facciamo un grafico a LINEE per chiarezza massima.
+            chart_evo = workbook.add_chart({'type': 'line'})
+            chart_evo.add_series({
+                'name':       'Valore Portafoglio',
+                'categories': f"='{sheet_hist_name}'!$A$2:$A${last_row}",
+                'values':     f"='{sheet_hist_name}'!$B$2:$B${last_row}",
+                'line':       {'color': '#004d40', 'width': 2.5}
+            })
+            chart_evo.add_series({
+                'name':       'Capitale Investito',
+                'categories': f"='{sheet_hist_name}'!$A$2:$A${last_row}",
+                'values':     f"='{sheet_hist_name}'!$C$2:$C${last_row}",
+                'line':       {'color': '#ef5350', 'width': 1.5, 'dash_type': 'dash'}
+            })
+            
+            chart_evo.set_title({'name': 'Crescita del Capitale'})
+            chart_evo.set_y_axis({'major_gridlines': {'visible': True, 'line': {'color': '#f0f0f0'}}})
+            chart_evo.set_size({'width': 800, 'height': 400})
+            ws_dash.insert_chart('B4', chart_evo)
+
+            # --- GRAFICO 2: UTILE NETTO (Colonne) ---
+            chart_pnl = workbook.add_chart({'type': 'column'})
+            chart_pnl.add_series({
+                'name':       'Utile Netto',
+                'categories': f"='{sheet_hist_name}'!$A$2:$A${last_row}",
+                'values':     f"='{sheet_hist_name}'!$D$2:$D${last_row}",
+                'fill':       {'color': '#66bb6a'}, # Verde base, non possiamo fare conditional color nativo facile qui
+                'gap':        50
+            })
+            chart_pnl.set_title({'name': 'Andamento Utile Netto (€)'})
+            chart_pnl.set_size({'width': 800, 'height': 350})
+            ws_dash.insert_chart('B26', chart_pnl)
+
+        # --- GRAFICO 3: ALLOCAZIONE (Torta) ---
+        if data_pf:
+            chart_pie = workbook.add_chart({'type': 'doughnut'})
             chart_pie.add_series({
                 'name': 'Allocazione',
-                'categories': f'=Portafoglio!$A$2:$A${len(df_pf)+1}',
-                'values': f'=Portafoglio!$E$2:$E${len(df_pf)+1}',
+                'categories': f"='{sheet_pf_name}'!$A$2:$A${len(df_pf)+1}",
+                'values':     f"='{sheet_pf_name}'!$E$2:$E${len(df_pf)+1}",
+                'data_labels': {'percentage': True, 'position': 'outside'}
             })
-            ws_pf.insert_chart('H2', chart_pie)
+            chart_pie.set_title({'name': 'Allocazione Asset'})
+            chart_pie.set_style(10)
+            chart_pie.set_size({'width': 400, 'height': 350})
+            # Lo posizioniamo a destra del grafico PnL o sotto
+            ws_dash.insert_chart('O4', chart_pie)
 
     return output.getvalue()
+
