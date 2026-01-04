@@ -325,12 +325,14 @@ def main():
                 """, unsafe_allow_html=True)
 
         with st.expander("🤖 Scansione Automatica", expanded=True):
-            if st.button("🔎 Scansiona Mercato", use_container_width=True):
-                with st.spinner("Analisi in corso..."):
-                    auto_data = get_data(AUTO_SCAN_TICKERS)
+            # Cambiato testo bottone per chiarezza
+            if st.button("🔎 Scansiona la TUA Watchlist", use_container_width=True):
+                with st.spinner(f"Analisi di {len(watchlist_tickers)} asset..."):
+                    # FIX: Usa la lista utente, non quella globale fissa
+                    auto_data = get_data(watchlist_tickers) 
                     opportunities = []
                     
-                    for t in AUTO_SCAN_TICKERS:
+                    for t in watchlist_tickers:
                         if t in auto_data:
                             tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90, conf = evaluate_strategy_full(auto_data[t])
                             
@@ -341,7 +343,7 @@ def main():
                                     "ticker": t, "trend": tl, "action": act, 
                                     "color": col, "price": pr, "rsi": rsi, 
                                     "drawdown": dd, "reason": reason,
-                                    "priority": priority, "target": tgt,      
+                                    "priority": priority, "target": tgt,       
                                     "potential": pot, "risk": risk_pr,
                                     "risk_pot": risk_pot,
                                     "w30": w30, "p30": p30, "w60": w60, 
@@ -359,7 +361,7 @@ def main():
                         cols_rec = st.columns(3)
                         for idx, opp in enumerate(opportunities):
                             border = "3px solid #FFD700" if "ORO" in opp['action'] else "1px solid #8bc34a"
-                            asset_name = get_asset_name(opp['ticker'])
+                            asset_name = next((k for k, v in user_watchlist_dict.items() if v == opp['ticker']), opp['ticker'])
                             
                             with cols_rec[idx % 3]: 
                                 st.markdown(f"""
@@ -405,7 +407,7 @@ def main():
         st.divider()
         st.subheader("🔎 Analisi Singolo Asset")
         
-        all_options = ["➕ Inserisci Ticker Manuale..."] + sorted(list(POPULAR_ASSETS.values()))
+        all_options = ["➕ Inserisci Ticker Manuale..."] + watchlist_options
         
         c_sel, c_input = st.columns([3, 1])
         with c_sel:
@@ -1257,6 +1259,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
