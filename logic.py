@@ -1,3 +1,5 @@
+#logic.py
+
 import streamlit as st
 from st_supabase_connection import SupabaseConnection
 import yfinance as yf
@@ -863,6 +865,7 @@ def generate_enhanced_excel_report(df_hist, current_portfolio):
             ws_pf.insert_chart('H2', chart_pie)
 
     return output.getvalue()
+
 
 
 
