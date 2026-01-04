@@ -575,29 +575,43 @@ def main():
         valid_pf = [item for item in pf.items() if item[0] in market_data]
         sorted_pf = sorted(valid_pf, key=lambda x: x[1]['pnl_pct'])
 
-        if sorted_pf:
+if sorted_pf:
             cols_adv = st.columns(3)
             for i, (sym, dat) in enumerate(sorted_pf):
                 asset_name = get_asset_name(sym)
                 
-                # 1. FIX ERRORE: Definiamo le variabili PRIMA di usarle
+                # 1. Definizioni Variabili
                 prezzo_carico = dat['avg_price']
                 curr_p = dat.get('cur_price', prezzo_carico)
+                df_asset = market_data[sym] # Prendiamo il DF per i calcoli
                 
-                # 2. Logica Advice (Gestisce 4 o 5 valori di ritorno per sicurezza)
-                res = generate_portfolio_advice(market_data[sym], prezzo_carico, curr_p)
+                # 2. Logica AI
+                res = generate_portfolio_advice(df_asset, prezzo_carico, curr_p)
                 if len(res) == 5:
                     tit, adv, col_bg, t_stop, _ = res
                 else:
                     tit, adv, col_bg, t_stop = res
                 
-                # 3. Dati Tecnici
-                tl, _, _, pr, rsi, dd, _, tgt, pot, risk_pr, risk_pot, _, _, _, _, _, _, conf = evaluate_strategy_full(market_data[sym])
+                # 3. Dati Tecnici & Stima Tempo
+                tl, _, _, pr, rsi, dd, _, tgt, pot, risk_pr, risk_pot, _, _, _, _, _, _, conf = evaluate_strategy_full(df_asset)
                 
-                # 4. Calcoli Extra
+                # --- NUOVO CALCOLO: GIORNI AL TARGET ---
+                atr_current = df_asset['ATR'].iloc[-1]
+                distanza_prezzo = abs(tgt - curr_p)
+                # Stima: Distanza / (ATR * 0.5). Ipotizziamo che sfrutti metà della volatilità giornaliera in direzione del target.
+                if atr_current > 0:
+                    giorni_stimati = int(distanza_prezzo / (atr_current * 0.5))
+                    # Tuning fine per renderlo realistico
+                    if giorni_stimati < 3: giorni_stimati = "Questa settimana"
+                    elif giorni_stimati > 100: giorni_stimati = "Lungo Termine"
+                    else: giorni_stimati = f"~{giorni_stimati} gg"
+                else:
+                    giorni_stimati = "N/A"
+                # ---------------------------------------
+
+                # Calcoli UI
                 distanza_stop = ((risk_pr - pr) / pr) * 100 
                 distanza_trailing = ((t_stop - pr) / pr) * 100
-                # Distanza Target (evita divisione per zero)
                 distanza_target = ((tgt - pr) / pr) * 100 if (tgt and pr) else 0.0
                 
                 trend_icon = "🟢" if "BULLISH" in tl else "🔴"
@@ -605,6 +619,7 @@ def main():
                 days = dat.get('days_held', 0)
                 time_badge = f"📅 {days} gg"
 
+                # 4. Render Card
                 with cols_adv[i % 3]:
                     st.markdown(f"""
                         <div class="suggestion-box" style="background-color:{col_bg}; border: 1px solid #bbb; min-height: 380px;">
@@ -639,6 +654,7 @@ def main():
                                 </div>
                                 <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
                                     <span style="color: green;">🎯 Target: ${tgt:.0f} (+{distanza_target:.1f}%)</span>
+                                    <span style="background-color:#e8f5e9; padding:0 4px; border-radius:4px; font-size:0.7rem; color:green;">⏳ {giorni_stimati}</span>
                                 </div>
                                 <div style="display:flex; justify-content:space-between;">
                                     <span style="color: #b71c1c;">🛑 Supporto: ${risk_pr:.0f} ({distanza_stop:.1f}%)</span>
@@ -1134,6 +1150,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
