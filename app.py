@@ -580,25 +580,30 @@ def main():
             for i, (sym, dat) in enumerate(sorted_pf):
                 asset_name = get_asset_name(sym)
                 
-                # Usiamo .get() per sicurezza
-                curr_p = dat.get('cur_price', dat['avg_price'])
+                # --- 1. DEFINIZIONE VARIABILI FONDAMENTALI (FIX QUI) ---
+                prezzo_carico = dat['avg_price']  # <--- Definizione aggiunta
+                curr_p = dat.get('cur_price', prezzo_carico)
                 
-                # FIX: Ora la funzione ritorna 4 valori, incluso t_stop
-                tit, adv, col_bg, t_stop = generate_portfolio_advice(market_data[sym], dat['avg_price'], curr_p)
+                # --- 2. LOGICA AI ---
+                # Nota: la funzione ora ritorna 4 valori (incluso trailing_stop)
+                tit, adv, col_bg, t_stop = generate_portfolio_advice(market_data[sym], prezzo_carico, curr_p)
                 
-                # Dati tecnici
+                # Dati Tecnici
                 tl, _, _, pr, rsi, dd, _, tgt, pot, risk_pr, risk_pot, _, _, _, _, _, _, conf = evaluate_strategy_full(market_data[sym])
                 
-                # Calcoli UI
-                distanza_stop_tecnico = ((risk_pr - pr) / pr) * 100 
-                # Distanza dal Trailing Stop (Chandelier)
+                # --- 3. CALCOLI UI ---
+                distanza_stop = ((risk_pr - pr) / pr) * 100 
                 distanza_trailing = ((t_stop - pr) / pr) * 100
+                
+                # Se tgt è 0 (dati mancanti), evita divisione per zero
+                distanza_target = ((tgt - pr) / pr) * 100 if (tgt and pr) else 0.0
                 
                 trend_icon = "🟢" if "BULLISH" in tl else "🔴"
                 allocazione = (dat['qty'] * curr_p / tot_val * 100) if tot_val > 0 else 0
                 days = dat.get('days_held', 0)
                 time_badge = f"📅 {days} gg"
 
+                # --- 4. RENDER CARD ---
                 with cols_adv[i % 3]:
                     st.markdown(f"""
                         <div class="suggestion-box" style="background-color:{col_bg}; border: 1px solid #bbb; min-height: 380px;">
@@ -608,13 +613,14 @@ def main():
                                     <span style="color:{'green' if dat['pnl_pct'] >=0 else 'red'}; font-weight:bold; font-size:1.1rem;">{dat['pnl_pct']:+.1f}%</span>
                                     <div style="font-size:0.7rem; background:#444; color:white; padding:2px 6px; border-radius:4px; margin-top:2px;">{time_badge}</div>
                                 </div>
-                            </div>               
+                            </div>                    
                             <h3 style="color:#222; margin:5px 0; font-size:1.1rem;">{tit}
                                 <span style="float: right; background-color: #388e3c; color: white; padding: 2px 6px; border-radius: 5px; font-size: 0.8rem;">Score: {conf}</span>
                             </h3>
-                            <p style="font-size:0.85rem; margin-bottom: 8px; line-height:1.3; color:#333;">{adv}</p>                
+                            <p style="font-size:0.85rem; margin-bottom: 8px; line-height:1.3; color:#333;">{adv}</p>
+                            
                             <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom: 8px; padding: 4px 0; border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc;">
-                                <span>Prezzo: <b>${dat['cur_price']:.2f}</b></span>
+                                <span>Prezzo: <b>${curr_p:.2f}</b></span>
                                 <span style="color:#666;">Media: ${prezzo_carico:.2f}</span>
                             </div>
                             <div style="background-color: rgba(255,255,255,0.6); padding: 8px; border-radius: 6px; border: 1px dashed #777; margin-bottom: 10px;">
@@ -632,8 +638,10 @@ def main():
                                     <span style="color: #0d47a1;">🛡️ Trailing Stop: ${t_stop:.2f} ({distanza_trailing:.1f}%)</span>
                                 </div>
                                 <div style="display:flex; justify-content:space-between;">
-                                    <span style="color: green;">🎯 Target: ${tgt:.0f}</span>
-                                    <span style="color: #b71c1c;">🛑 Supporto: ${risk_pr:.0f}</span>
+                                    <span style="color: green;">🎯 Target: ${tgt:.0f} (+{distanza_target:.1f}%)</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; margin-top:2px;">
+                                    <span style="color: #b71c1c;">🛑 Supporto: ${risk_pr:.0f} ({distanza_stop:.1f}%)</span>
                                 </div>
                             </div>
                         </div>""", unsafe_allow_html=True)
@@ -1111,6 +1119,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
