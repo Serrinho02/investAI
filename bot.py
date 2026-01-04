@@ -81,8 +81,8 @@ def send_portfolio(message):
     
     if not username:
         bot.send_message(chat_id, 
-                        "⚠️ Non sei configurato. Collega l'account sul sito.", 
-                        parse_mode="Markdown")
+                         "⚠️ Non sei configurato. Collega l'account sul sito.", 
+                         parse_mode="Markdown")
         return
 
     bot.send_message(chat_id, 
@@ -100,7 +100,15 @@ def send_portfolio(message):
         if t in market_data:
             cur_price = market_data[t]['Close'].iloc[-1]
             
-            tit, adv, _ = generate_portfolio_advice(market_data[t], data['avg_price'], cur_price)
+            # FIX: Gestione 5 valori di ritorno (title, advice, color, trailing_stop, risk_score)
+            res = generate_portfolio_advice(market_data[t], data['avg_price'], cur_price)
+            if len(res) == 5:
+                tit, adv, _, t_stop, risk = res
+            else:
+                tit, adv, _, t_stop = res # Fallback
+                risk = 0
+
+            # Dati Tecnici
             tl, act, col, pr, rsi, dd, reason, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90, conf = evaluate_strategy_full(market_data[t])
             
             pnl = ((cur_price - data['avg_price']) / data['avg_price']) * 100
@@ -109,8 +117,8 @@ def send_portfolio(message):
             
             msg = (f"{emoji} <b>{t}</b>: {pnl:+.1f}%\n"
                    f"📢 <b>{tit}</b>\n"
+                   f"🛡️ Stop Dinamico: <b>${t_stop:.2f}</b>\n" # NUOVO
                    f"🎯 Target: ${tgt:.2f} (<b>{pot_str}</b>)\n"
-                   f"🔻 Risk: {risk_pot:.1f}%\n"
                    f"🏆 Score: <b>{conf}/100</b>\n"
                    f"<i>{adv}</i>")
             msgs.append(msg)
@@ -210,9 +218,12 @@ def send_daily_report():
                 for t, data in pf.items():
                     if t in market_data:
                         cur_price = market_data[t]['Close'].iloc[-1]
-                        tit, adv, _ = generate_portfolio_advice(market_data[t], data['avg_price'], cur_price)
                         
-                        keywords_urgenti = ["VENDI", "INCASSA", "PROTEGGI", "MOONBAG", "VALUTA"]
+                        # FIX: Unpacking sicuro
+                        res = generate_portfolio_advice(market_data[t], data['avg_price'], cur_price)
+                        tit = res[0] # Prendiamo solo il titolo
+                        
+                        keywords_urgenti = ["VENDI", "INCASSA", "PROTEGGI", "MOONBAG", "COLTELLO"]
                         if any(k in tit for k in keywords_urgenti):
                              pnl = ((cur_price - data['avg_price']) / data['avg_price']) * 100
                              messages.append(f"🚨 <b>{t}</b> ({pnl:+.1f}%): {tit}")
