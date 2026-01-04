@@ -953,6 +953,29 @@ def generate_enhanced_excel_report(df_hist, current_portfolio, transactions_list
 
     return output.getvalue()
 
+def estimate_days_to_target(current_price, target_price, atr):
+    """
+    Stima i giorni necessari per raggiungere il target basandosi sulla volatilità (ATR).
+    Formula: Distanza / (ATR * Fattore Prudenza)
+    """
+    if atr <= 0 or current_price <= 0:
+        return 0, "N/A"
+    
+    distance = abs(target_price - current_price)
+    
+    # Assumiamo che il prezzo non vada dritto al target ogni giorno.
+    # Usiamo un "Fattore di Efficienza" del 40% (cioè il prezzo zig-zaga).
+    daily_move_effective = atr * 0.4
+    
+    days = int(distance / daily_move_effective)
+    
+    # Limiti logici per evitare numeri assurdi
+    if days < 1: days = 1
+    if days > 120: return days, "> 4 Mesi"
+    if days > 60: return days, f"~ {int(days/30)} Mesi"
+    if days > 30: return days, f"~ 1 Mese e mezzo"
+    
+    return days, f"~ {days} Giorni"
 
 
 
