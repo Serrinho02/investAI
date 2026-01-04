@@ -11,6 +11,7 @@ from logic import (
     AUTO_SCAN_TICKERS, POPULAR_ASSETS, validate_ticker,
     get_historical_portfolio_value, generate_enhanced_excel_report
 )
+import numpy as np
 from bot import run_scheduler, bot 
 
 # --- CONFIGURAZIONE ---
@@ -452,11 +453,7 @@ def main():
                 st.warning(f"Ticker '{selected_ticker}' non valido")
 
 # --- 2. PORTAFOGLIO ---
-    elif page == "💼 Portafoglio":
-        # Importiamo le funzioni necessarie (Assicurati che generate_enhanced_excel_report sia aggiornata in logic.py)
-        from logic import get_historical_portfolio_value, generate_enhanced_excel_report, evaluate_strategy_full, generate_portfolio_advice
-        import numpy as np
-        
+    elif page == "💼 Portafoglio": 
         c_title, c_btn = st.columns([3, 1])
         with c_title: st.title("Gestione Portafoglio")
         with c_btn:
@@ -1069,6 +1066,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
