@@ -560,7 +560,6 @@ def main():
                                 <span style="float: right; background-color: #388e3c; color: white; padding: 2px 6px; border-radius: 5px; font-size: 0.8rem;">Score: {conf}</span>
                             </h3>
                             <p style="font-size:0.85rem; margin-bottom: 10px; line-height:1.3; color:#333;">{adv}</p>
-                            
                             <div style="background-color: rgba(255,255,255,0.6); padding: 8px; border-radius: 6px; border: 1px dashed #777; margin-bottom: 10px;">
                                 <div style="font-size: 0.65rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Analisi Tecnica</div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
@@ -572,7 +571,6 @@ def main():
                                     <span>Alloc: <b>{allocazione:.1f}%</b></span>
                                 </div>
                             </div>
-                            
                             <div style="font-size: 0.75rem; color:#333; padding-top: 5px; border-top: 1px solid rgba(0,0,0,0.1);">
                                 <div style="display:flex; justify-content:space-between; font-weight:bold;">
                                     <span style="color: green;">🎯 Tgt: ${tgt:.0f}</span>
@@ -1054,6 +1052,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
