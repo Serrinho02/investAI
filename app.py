@@ -618,7 +618,6 @@ def main():
                                 <span style="float: right; background-color: #388e3c; color: white; padding: 2px 6px; border-radius: 5px; font-size: 0.8rem;">Score: {conf}</span>
                             </h3>
                             <p style="font-size:0.85rem; margin-bottom: 8px; line-height:1.3; color:#333;">{adv}</p>
-                            
                             <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom: 8px; padding: 4px 0; border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc;">
                                 <span>Prezzo: <b>${curr_p:.2f}</b></span>
                                 <span style="color:#666;">Media: ${prezzo_carico:.2f}</span>
@@ -1119,6 +1118,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
