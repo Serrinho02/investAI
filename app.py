@@ -229,6 +229,20 @@ def main():
     if page == "📊 Analisi Mercato":
         st.title("📊 Analisi Mercato")
 
+        # --- 1. RECUPERO WATCHLIST UTENTE ---
+        # Questa è la chiave: usiamo la lista personale dal DB
+        user_watchlist_dict = db.get_user_watchlist(user)
+        
+        # Se la lista è vuota (es. nuovo utente), inizializzala con i default
+        if not user_watchlist_dict:
+            with st.spinner("Inizializzazione watchlist predefinita..."):
+                db.init_default_watchlist(user)
+                user_watchlist_dict = db.get_user_watchlist(user)
+        
+        # Estraiamo i ticker e i nomi per l'uso nell'app
+        watchlist_tickers = list(user_watchlist_dict.values())
+        watchlist_options = sorted(list(user_watchlist_dict.keys()))
+        
         with st.expander("ℹ️ Legenda Strategica", expanded=False):
             st.markdown("""
                 <div style="font-size: 0.9rem; color: #333; line-height: 1.5;">
@@ -1243,6 +1257,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
