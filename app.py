@@ -214,6 +214,7 @@ def main():
     
     # ANALISI MERCATO
     if page == "📊 Analisi Mercato":
+        from logic import AUTO_SCAN_TICKERS, evaluate_strategy_full
         st.title("📊 Analisi Mercato")
 
         with st.expander("ℹ️ Legenda Strategica", expanded=False):
@@ -1057,6 +1058,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
