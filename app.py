@@ -439,9 +439,7 @@ def main():
             else:
                 st.warning(f"Ticker '{selected_ticker}' non valido")
 
-
-    #  PORTAFOGLIO
-    elif page == "💼 Portafoglio":
+    elif page == "💼 Portafoglio":
         c_title, c_btn = st.columns([3, 1])
         with c_title: 
             st.title("💼 Portafoglio")
@@ -1068,6 +1066,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
