@@ -576,7 +576,8 @@ def generate_portfolio_advice(df, avg_price, current_price):
     atr_multiplier = 3.5 if atr_pct > 3.0 else 3.0
     raw_stop = rolling_high - (atr_multiplier * atr)
     # Lo stop non può mai essere sopra il prezzo attuale (sicurezza matematica)
-    trailing_stop = min(raw_stop, current_price - (2.0 * atr))
+    min_distance = current_price * 0.01  # almeno 1%
+    trailing_stop = min(raw_stop, current_price - max(2.0 * atr, min_distance))
 
     # RISK SCORE (0-10)
     # Base: Volatilità. Malus: Trend Bear. Bonus: Trend Bull.
@@ -596,7 +597,10 @@ def generate_portfolio_advice(df, avg_price, current_price):
     t_low = max(3.0, 1.5 * atr_pct)
     t_mid = max(10.0, 4 * atr_pct)
     t_high = max(25.0, 8 * atr_pct)
-    recent_return = (df['Close'].iloc[-1] - df['Close'].iloc[-5]) / df['Close'].iloc[-5] * 100
+    if len(df) >= 5:
+        recent_return = (df['Close'].iloc[-1] - df['Close'].iloc[-5]) / df['Close'].iloc[-5] * 100
+    else:
+        recent_return = 0
 
     # ==================================================
     # 🧠 DECISION ENGINE
@@ -948,6 +952,7 @@ def generate_enhanced_excel_report(df_hist, current_portfolio, transactions_list
             })
 
     return output.getvalue()
+
 
 
 
