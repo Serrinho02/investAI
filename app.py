@@ -858,16 +858,25 @@ def main():
             for t in owned_tickers:
                 if t in market_data:
                     dat = pf[t]
+                    # Usa .get() per sicurezza
                     cur_price = market_data[t]['Close'].iloc[-1]
                     
                     val_pos = dat['qty'] * cur_price
                     pnl_val = val_pos - dat['total_cost']
                     dat['pnl_pct'] = (pnl_val / dat['total_cost'] * 100) if dat['total_cost'] > 0 else 0
                     
-                    tit, adv, col = generate_portfolio_advice(market_data[t], dat['avg_price'], cur_price)
-                    
-                    # FIX: Recupera TUTTI i dati tecnici
-                    _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90, conf = evaluate_strategy_full(market_data[t])
+                    # FIX: Gestione robusta dei valori di ritorno (3, 4 o 5)
+                    res = generate_portfolio_advice(market_data[t], dat['avg_price'], cur_price)
+                    if len(res) == 5:
+                        tit, adv, col, t_stop, _ = res
+                    elif len(res) == 4:
+                        tit, adv, col, t_stop = res
+                    else:
+                        tit, adv, col = res
+                        t_stop = 0.0
+
+                    # Dati Tecnici
+                    tl, _, _, pr, rsi, dd, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90, conf = evaluate_strategy_full(market_data[t])
                     
                     item = {
                         "ticker": t, "title": tit, "desc": adv, "color": col, 
@@ -877,20 +886,26 @@ def main():
                         "confidence": conf
                     }
                     
-                    if any(k in tit for k in ["VENDI", "INCASSA", "PROTEGGI", "VALUTA VENDITA", "STOP"]):
+                    # LOGICA DI SMISTAMENTO
+                    if any(k in tit for k in ["VENDI", "INCASSA", "PROTEGGI", "VALUTA VENDITA", "STOP", "COLTELLO"]):
                         actions_sell.append(item)
                     elif any(k in tit for k in ["ACQUISTA", "MEDIA", "ACCUMULO", "PAC"]):
                         actions_buy_more.append(item)
                     else:
+                        # Personalizzazione colori per Hold
                         if "MOONBAG" in tit: 
                             item['color'] = "#e8f5e9"
                             item['border'] = "2px solid #4caf50"
-                        elif "TREND SANO" in tit:
+                        elif "TREND SANO" in tit or "IN SALITA" in tit:
                             item['color'] = "#f1f8e9"
                             item['border'] = "1px solid #8bc34a"
-                        else:
+                        elif "DEBOLEZZA" in tit:
+                            item['color'] = "#fff8e1"
+                            item['border'] = "1px solid #ffcc80"
+                        else: # Mantieni / Attendi / Attenzione
                             item['color'] = "#f5f5f5"
                             item['border'] = "1px solid #ccc"
+                            
                         actions_hold.append(item)
                 else:
                     missing_tickers.append(t)
@@ -1119,6 +1134,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
