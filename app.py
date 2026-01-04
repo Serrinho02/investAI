@@ -477,39 +477,46 @@ def main():
 
         # Aggiorna valori live
         for t in tickers_current:
-            if t in market_data:
+            # Se il dato esiste, usa il prezzo di mercato. Altrimenti usa il prezzo medio (fallback)
+            if t in market_data and not market_data[t].empty:
                 cur = market_data[t]['Close'].iloc[-1]
-                val = pf[t]['qty'] * cur
-                
-                pf[t]['cur_price'] = cur
-                pf[t]['pnl'] = val - pf[t]['total_cost'] 
-                pf[t]['pnl_pct'] = (pf[t]['pnl'] / pf[t]['total_cost'] * 100) if pf[t]['total_cost'] > 0 else 0
-                
-                f_date = first_buy_dates.get(t, date.today())
-                pf[t]['days_held'] = (date.today() - f_date).days
-                
-                tot_val += val
-                tot_cost += pf[t]['total_cost']
+            else:
+                cur = pf[t]['avg_price']
+            
+            # Salviamo il prezzo in pf così è disponibile ovunque (evita KeyError)
+            pf[t]['cur_price'] = cur 
+            
+            val = pf[t]['qty'] * cur
+            pf[t]['pnl'] = val - pf[t]['total_cost'] 
+            pf[t]['pnl_pct'] = (pf[t]['pnl'] / pf[t]['total_cost'] * 100) if pf[t]['total_cost'] > 0 else 0
+            
+            f_date = first_buy_dates.get(t, date.today())
+            pf[t]['days_held'] = (date.today() - f_date).days
+            
+            tot_val += val
+            tot_cost += pf[t]['total_cost']
+            
+            # Aggiungiamo al grafico solo se ha valore > 0
+            if val > 0.01:
+                pie_data.append({"Label": t, "Value": val})
             
         pnl_tot = tot_val - tot_cost
         pnl_tot_pct = (pnl_tot/tot_cost*100) if tot_cost > 0 else 0
 
-        # METRICHE
-        st.markdown("""
-        <style>
-        div[data-testid="metric-container"] {
-            background-color: #ffffff; 
-            border: 1px solid #e0e0e0; 
-            padding: 12px; 
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        </style>""", unsafe_allow_html=True)
-        
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Valore Attuale", f"€{tot_val:,.2f}")
-        m2.metric("Utile Netto", f"€{pnl_tot:,.2f}", delta=f"{pnl_tot_pct:.2f}%")
-        m3.metric("Capitale Investito", f"€{tot_cost:,.2f}")
+        # --- METRICHE ---
+        with st.container():
+            st.markdown("""
+            <style>
+            div[data-testid="metric-container"] {
+                background-color: #ffffff; border: 1px solid #e0e0e0; padding: 10px; border-radius: 10px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            }
+            </style>""", unsafe_allow_html=True)
+            
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Valore Attuale", f"€{tot_val:,.2f}")
+            m2.metric("Utile Netto", f"€{pnl_tot:,.2f}", delta=f"{pnl_tot_pct:.2f}%")
+            m3.metric("Capitale Investito", f"€{tot_cost:,.2f}")
 
         # STRATEGIA OPERATIVA
         st.divider()
@@ -1056,6 +1063,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
