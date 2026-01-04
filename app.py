@@ -1125,12 +1125,14 @@ def main():
             if not (actions_sell or actions_buy_more or actions_hold or actions_new_entry):
                 st.info("Nessun dato disponibile")
 
-    # IMPOSTAZIONI
+# IMPOSTAZIONI
     elif page == "⚙️ Impostazioni":
         st.title("⚙️ Impostazioni")
         
-        tab_tg, tab_sec = st.tabs(["🔔 Notifiche", "🔒 Sicurezza"])
+        # Define the tabs - added "My Assets"
+        tab_tg, tab_sec, tab_assets = st.tabs(["🔔 Notifiche", "🔒 Sicurezza", "📋 My Assets"])
         
+        # --- Tab: Notifiche (Telegram) ---
         with tab_tg:
             st.info("Configura Telegram per ricevere consigli automatici ogni mattina.")
             with st.container(border=True):
@@ -1158,6 +1160,7 @@ def main():
                 4. **IMPORTANTE:** Cerca **InvestAI Bot** e premi AVVIA
                 """)
 
+        # --- Tab: Sicurezza (Password) ---
         with tab_sec:
             st.warning("Modifica la password di accesso.")
             with st.container(border=True):
@@ -1180,8 +1183,67 @@ def main():
                         else:
                             st.warning("Inserisci la nuova password")
 
+        # --- Tab: My Assets (Gestione Asset Personali) ---
+        with tab_assets:
+            st.info("Gestisci la lista dei tuoi asset preferiti da monitorare.")
+            
+            # Recupera la lista degli asset dell'utente
+            # Assicurati che db.get_user_assets(user) ritorni una lista di stringhe (es. ['AAPL', 'BTC-USD'])
+            # Se la funzione non esiste ancora nel DBManager, dovrai crearla.
+            user_assets_list = db.get_user_assets(user) 
+            
+            col_add, col_list = st.columns([1, 2])
+            
+            with col_add:
+                with st.container(border=True):
+                    st.subheader("Aggiungi Asset")
+                    new_asset = st.text_input("Simbolo Ticker (es. AAPL)", key="new_asset_input").upper()
+                    
+                    if st.button("➕ Aggiungi", type="primary"):
+                        if new_asset:
+                            # Verifica se l'asset esiste già nella lista
+                            if new_asset in user_assets_list:
+                                st.warning(f"L'asset {new_asset} è già nella tua lista.")
+                            else:
+                                # Aggiungi l'asset al database
+                                # Assicurati che db.add_user_asset(user, new_asset) esista
+                                if db.add_user_asset(user, new_asset):
+                                    st.success(f"Asset {new_asset} aggiunto!")
+                                    time.sleep(1) # Breve pausa per mostrare il messaggio
+                                    st.rerun() # Ricarica la pagina per aggiornare la lista
+                                else:
+                                    st.error("Errore nell'aggiunta dell'asset. Verifica il ticker.")
+                        else:
+                            st.warning("Inserisci un simbolo.")
+
+            with col_list:
+                with st.container(border=True):
+                    st.subheader("I Tuoi Asset")
+                    
+                    if user_assets_list:
+                        # Mostra gli asset in una tabella o lista con opzione di cancellazione
+                        for asset in user_assets_list:
+                            c1, c2 = st.columns([4, 1])
+                            with c1:
+                                st.markdown(f"**{asset}**")
+                            with c2:
+                                # Usa una chiave unica per ogni bottone
+                                if st.button("🗑️", key=f"del_{asset}"):
+                                    # Rimuovi l'asset dal database
+                                    # Assicurati che db.remove_user_asset(user, asset) esista
+                                    if db.remove_user_asset(user, asset):
+                                        st.success(f"Rimosso {asset}")
+                                        time.sleep(0.5)
+                                        st.rerun()
+                                    else:
+                                        st.error("Errore nella rimozione.")
+                            st.divider()
+                    else:
+                        st.write("Non hai ancora aggiunto nessun asset personalizzato.")
+
 if __name__ == "__main__":
     main()
+
 
 
 
