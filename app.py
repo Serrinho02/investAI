@@ -522,51 +522,79 @@ def main():
             cols_adv = st.columns(3)
             for i, (sym, dat) in enumerate(sorted_pf):
                 asset_name = get_asset_name(sym)
-                tit, adv, col = generate_portfolio_advice(market_data[sym], dat['avg_price'], dat['cur_price'])
                 
-                # FIX: Recupera TUTTI i dati tecnici
-                _, _, _, _, _, _, _, tgt, pot, risk_pr, risk_pot, w30, p30, w60, p60, w90, p90, conf = evaluate_strategy_full(market_data[sym])
-                
-                val_attuale_asset = dat['qty'] * dat['cur_price']
-                alloc = (val_attuale_asset / tot_val * 100) if tot_val > 0 else 0
+                # 1. Calcolo Dati Finanziari Personali
+                val_attuale = dat['qty'] * dat['cur_price']
+                prezzo_carico = dat['avg_price']
+                pnl_percent = dat['pnl_pct']
+                allocazione = (val_attuale / tot_val * 100) if tot_val > 0 else 0
                 days = dat.get('days_held', 0)
                 
+                # 2. Analisi Tecnica dell'AI
+                tit, adv, col_bg = generate_portfolio_advice(market_data[sym], prezzo_carico, dat['cur_price'])
+                
+                # Recuperiamo i dati tecnici puri
+                # tl = Trend Label, pr = Price, dd = Drawdown
+                tl, _, _, pr, rsi, dd, _, tgt, pot, risk_pr, risk_pot, _, _, _, _, _, _, conf = evaluate_strategy_full(market_data[sym])
+                
+                # 3. Calcoli per la Gestione (Management)
+                # Calcoliamo quanto dista il prezzo attuale dal supporto tecnico (Stop Loss suggerito)
+                distanza_stop = ((risk_pr - pr) / pr) * 100 
+                
+                # Definiamo lo stato del Trend per chi lo possiede
+                trend_icon = "🟢" if "BULLISH" in tl else "🔴"
+                trend_text = "Rialzista" if "BULLISH" in tl else "Ribassista"
+                
+                # Badge Giorni
+                time_badge = f"📅 {days} gg"
+
                 with cols_adv[i % 3]:
                     st.markdown(f"""
-                    <div class="suggestion-box" style="background-color:{col}; border: 1px solid #bbb; min-height: 340px;">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                            <div>
-                                <strong style="font-size:1.1rem;">{sym}</strong>
-                                <div style="font-size:0.7rem; color:#666;">{asset_name}</div>
-                            </div>
-                            <div style="text-align:right;">
-                                <span style="color:{'green' if dat['pnl_pct']>=0 else 'red'}; font-weight:bold; font-size:1rem;">
-                                    {dat['pnl_pct']:.1f}%
-                                </span>
-                                <div style="font-size:0.7rem; background:#444; color:white; padding:2px 6px; border-radius:4px; margin-top:2px;">
-                                    📅 {days} gg
+                        <div class="suggestion-box" style="background-color:{col_bg}; border: 1px solid #bbb; min-height: 350px;">
+                            
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom:8px;">
+                                <div>
+                                    <strong style="font-size:1.1rem;">{sym}</strong>
+                                    <div style="font-size:0.75rem; color:#555;">{asset_name}</div> 
+                                </div>
+                                <div style="text-align:right;">
+                                    <span style="color:{'green' if pnl_percent >=0 else 'red'}; font-weight:bold; font-size:1.1rem;">
+                                        {pnl_percent:+.2f}%
+                                    </span>
+                                    <div style="font-size:0.7rem; background:#444; color:white; padding:2px 6px; border-radius:4px; margin-top:2px;">{time_badge}</div>
                                 </div>
                             </div>
-                        </div>
-                        <h3 style="color:#222; margin:10px 0; font-size:1.05rem;">
-                            {tit}
-                            <span style="float:right; background:#388e3c; color:white; padding:3px 7px; border-radius:5px; font-size:0.85rem;">
-                                🎯 {conf}
-                            </span>
-                        </h3>
-                        <p style="font-size:0.85rem; margin-bottom:8px; line-height:1.4;">{adv}</p>
-                        <hr style="margin: 8px 0; border-color: rgba(0,0,0,0.15);">
-                        <div style="font-size:0.75rem; color:#555;">
-                            <div style="display: flex; justify-content: space-between; margin-bottom:4px;">
-                                <span>Tgt: <b>${tgt:.2f}</b> <span style="color:green;">(+{pot:.1f}%)</span></span>
-                                <span>Risk: <b>${risk_pr:.2f}</b> <span style="color:red;">({risk_pot:.1f}%)</span></span>
+
+                            <h3 style="color:#222; margin:5px 0; font-size:1.1rem;">{tit}
+                                <span style="float: right; background-color: #388e3c; color: white; padding: 2px 6px; border-radius: 5px; font-size: 0.8rem;">
+                                    Score: {conf}
+                                </span>
+                            </h3>
+                            <p style="font-size:0.85rem; margin-bottom: 10px; line-height:1.3; min-height: 40px; color:#333;">{adv}</p>
+                            
+                            <div style="background-color: rgba(255,255,255,0.6); padding: 8px; border-radius: 6px; border: 1px dashed #777; margin-bottom: 10px;">
+                                <div style="font-size: 0.65rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Analisi Tecnica Posizione</div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
+                                    <span>Trend: <b>{trend_icon} {trend_text}</b></span>
+                                    <span>RSI: <b>{rsi:.0f}</b></span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
+                                    <span>Dai Massimi: <b style="color:red">{dd:.1f}%</b></span>
+                                    <span>Allocazione: <b>{allocazione:.1f}%</b></span>
+                                </div>
                             </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <span>Alloc: <b>{alloc:.1f}%</b></span>
-                                <span>Prezzo: <b>${dat['cur_price']:.2f}</b></span>
+                            
+                            <div style="font-size: 0.75rem; color:#333; padding-top: 5px; border-top: 1px solid rgba(0,0,0,0.1);">
+                                <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
+                                    <span>Prezzo Carico: <b>€{prezzo_carico:.2f}</b></span>
+                                    <span>Prezzo Attuale: <b>€{dat['cur_price']:.2f}</b></span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; font-weight:bold;">
+                                    <span style="color: green;">🎯 Target: ${tgt:.0f}</span>
+                                    <span style="color: #b71c1c;">🛑 Stop Tecnico: ${risk_pr:.0f} ({distanza_stop:.1f}%)</span>
+                                </div>
                             </div>
-                        </div>
-                    </div>""", unsafe_allow_html=True)
+                        </div>""", unsafe_allow_html=True)
         else:
             st.info("Portafoglio vuoto")
 
@@ -1032,4 +1060,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
