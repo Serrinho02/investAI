@@ -566,17 +566,21 @@ def main():
                 with cols_adv[i % 3]:
                     st.markdown(f"""
                         <div class="suggestion-box" style="background-color:{col_bg}; border: 1px solid #bbb; min-height: 380px;">
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom:8px;">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom:8px;">
                                 <div><strong style="font-size:1.1rem;">{sym}</strong><div style="font-size:0.75rem; color:#555;">{asset_name}</div></div>
                                 <div style="text-align:right;">
                                     <span style="color:{'green' if dat['pnl_pct'] >=0 else 'red'}; font-weight:bold; font-size:1.1rem;">{dat['pnl_pct']:+.1f}%</span>
                                     <div style="font-size:0.7rem; background:#444; color:white; padding:2px 6px; border-radius:4px; margin-top:2px;">{time_badge}</div>
                                 </div>
-                            </div>
+                            </div>               
                             <h3 style="color:#222; margin:5px 0; font-size:1.1rem;">{tit}
                                 <span style="float: right; background-color: #388e3c; color: white; padding: 2px 6px; border-radius: 5px; font-size: 0.8rem;">Score: {conf}</span>
                             </h3>
-                            <p style="font-size:0.85rem; margin-bottom: 10px; line-height:1.3; color:#333;">{adv}</p>
+                            <p style="font-size:0.85rem; margin-bottom: 8px; line-height:1.3; color:#333;">{adv}</p>                
+                            <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom: 8px; padding: 4px 0; border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc;">
+                                <span>Prezzo: <b>${dat['cur_price']:.2f}</b></span>
+                                <span style="color:#666;">Media: ${prezzo_carico:.2f}</span>
+                            </div>
                             <div style="background-color: rgba(255,255,255,0.6); padding: 8px; border-radius: 6px; border: 1px dashed #777; margin-bottom: 10px;">
                                 <div style="font-size: 0.65rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Analisi Posizione</div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
@@ -1071,6 +1075,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
