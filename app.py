@@ -606,7 +606,7 @@ def main():
                 
                 if not df_hist.empty:
                     # Download Excel
-                    excel_data = generate_enhanced_excel_report(df_hist, pf)
+                    excel_data = generate_enhanced_excel_report(df_hist, pf, raw_tx)
                     
                     col_dl, _ = st.columns([1, 3])
                     with col_dl:
@@ -1056,6 +1056,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
