@@ -420,7 +420,7 @@ def main():
             if manual_input: 
                 selected_ticker = manual_input
         else:
-            selected_ticker = selection
+            selected_ticker = user_watchlist_dict[selection]
 
         if selected_ticker and selected_ticker != "➕ Inserisci Ticker Manuale...":
             if validate_ticker(selected_ticker):
@@ -1259,6 +1259,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
