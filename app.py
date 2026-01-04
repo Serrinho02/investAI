@@ -620,7 +620,7 @@ def main():
                             <p style="font-size:0.85rem; margin-bottom: 8px; line-height:1.3; color:#333;">{adv}</p>
                             <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom: 8px; padding: 4px 0; border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc;">
                                 <span>Prezzo: <b>${curr_p:.2f}</b></span>
-                                <span style="color:#666;">Media: ${prezzo_carico:.2f}</span>
+                                <span style="color:#666;">Acq.: ${prezzo_carico:.2f}</span>
                             </div>
                             <div style="background-color: rgba(255,255,255,0.6); padding: 8px; border-radius: 6px; border: 1px dashed #777; margin-bottom: 10px;">
                                 <div style="font-size: 0.65rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Analisi Posizione</div>
@@ -1118,6 +1118,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
