@@ -547,22 +547,25 @@ def main():
                 # Usiamo .get() per sicurezza
                 curr_p = dat.get('cur_price', dat['avg_price'])
                 
-                tit, adv, col_bg = generate_portfolio_advice(market_data[sym], dat['avg_price'], curr_p)
+                # FIX: Ora la funzione ritorna 4 valori, incluso t_stop
+                tit, adv, col_bg, t_stop = generate_portfolio_advice(market_data[sym], dat['avg_price'], curr_p)
+                
+                # Dati tecnici
                 tl, _, _, pr, rsi, dd, _, tgt, pot, risk_pr, risk_pot, _, _, _, _, _, _, conf = evaluate_strategy_full(market_data[sym])
                 
-                distanza_stop = ((risk_pr - pr) / pr) * 100 
-                # Calcolo distanza target se non disponibile da evaluate_strategy
-                distanza_target = ((tgt - pr) / pr) * 100 if pr > 0 else 0
+                # Calcoli UI
+                distanza_stop_tecnico = ((risk_pr - pr) / pr) * 100 
+                # Distanza dal Trailing Stop (Chandelier)
+                distanza_trailing = ((t_stop - pr) / pr) * 100
                 
                 trend_icon = "🟢" if "BULLISH" in tl else "🔴"
-                trend_text = "Rialzista" if "BULLISH" in tl else "Ribassista"
                 allocazione = (dat['qty'] * curr_p / tot_val * 100) if tot_val > 0 else 0
                 days = dat.get('days_held', 0)
                 time_badge = f"📅 {days} gg"
 
                 with cols_adv[i % 3]:
                     st.markdown(f"""
-                        <div class="suggestion-box" style="background-color:{col_bg}; border: 1px solid #bbb; min-height: 360px;">
+                        <div class="suggestion-box" style="background-color:{col_bg}; border: 1px solid #bbb; min-height: 380px;">
                             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom:8px;">
                                 <div><strong style="font-size:1.1rem;">{sym}</strong><div style="font-size:0.75rem; color:#555;">{asset_name}</div></div>
                                 <div style="text-align:right;">
@@ -575,20 +578,22 @@ def main():
                             </h3>
                             <p style="font-size:0.85rem; margin-bottom: 10px; line-height:1.3; color:#333;">{adv}</p>
                             <div style="background-color: rgba(255,255,255,0.6); padding: 8px; border-radius: 6px; border: 1px dashed #777; margin-bottom: 10px;">
-                                <div style="font-size: 0.65rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Analisi Tecnica</div>
+                                <div style="font-size: 0.65rem; text-transform: uppercase; color: #555; font-weight: bold; margin-bottom: 4px; text-align:center;">Analisi Posizione</div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
                                     <span>Trend: <b>{trend_icon}</b></span><span>RSI: <b>{rsi:.0f}</b></span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
-                                    <span>Dai Massimi: <b style="color:red">{dd:.1f}%</b></span><span>Alloc: <b>{allocazione:.1f}%</b></span>
+                                    <span>Allocazione: <b>{allocazione:.1f}%</b></span>
+                                    <span>Dai Massimi: <b style="color:red">{dd:.1f}%</b></span>
                                 </div>
                             </div>
                             <div style="font-size: 0.75rem; color:#333; padding-top: 5px; border-top: 1px solid rgba(0,0,0,0.1);">
                                 <div style="display:flex; justify-content:space-between; margin-bottom: 4px; font-weight:bold;">
-                                    <span style="color: green;">🎯 Target: ${tgt:.0f} (+{distanza_target:.1f}%)</span>
+                                    <span style="color: #0d47a1;">🛡️ Trailing Stop: ${t_stop:.2f} ({distanza_trailing:.1f}%)</span>
                                 </div>
-                                <div style="display:flex; justify-content:space-between; font-weight:bold;">
-                                    <span style="color: #b71c1c;">🛑 Stop Tecnico: ${risk_pr:.0f} ({distanza_stop:.1f}%)</span>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span style="color: green;">🎯 Target: ${tgt:.0f}</span>
+                                    <span style="color: #b71c1c;">🛑 Supporto: ${risk_pr:.0f}</span>
                                 </div>
                             </div>
                         </div>""", unsafe_allow_html=True)
@@ -1066,6 +1071,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
