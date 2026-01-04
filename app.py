@@ -5,13 +5,13 @@ from datetime import date, datetime
 import pandas as pd
 import threading
 import time
+import numpy as np
 
 from logic import (
     DBManager, get_data_raw, evaluate_strategy_full, generate_portfolio_advice, 
     AUTO_SCAN_TICKERS, POPULAR_ASSETS, validate_ticker,
     get_historical_portfolio_value, generate_enhanced_excel_report
 )
-import numpy as np
 from bot import run_scheduler, bot 
 
 # --- CONFIGURAZIONE ---
@@ -1066,6 +1066,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
