@@ -1129,10 +1129,10 @@ def main():
     elif page == "⚙️ Impostazioni":
         st.title("⚙️ Impostazioni")
         
-        # Define the tabs - added "My Assets"
-        tab_tg, tab_sec, tab_assets = st.tabs(["🔔 Notifiche", "🔒 Sicurezza", "📋 My Assets"])
+        # 1. Definizione Tabs (Aggiunto "Lista Asset")
+        tab_tg, tab_sec, tab_list = st.tabs(["🔔 Notifiche", "🔒 Sicurezza", "📋 Watchlist"])
         
-        # --- Tab: Notifiche (Telegram) ---
+        # --- TAB TELEGRAM ---
         with tab_tg:
             st.info("Configura Telegram per ricevere consigli automatici ogni mattina.")
             with st.container(border=True):
@@ -1160,7 +1160,7 @@ def main():
                 4. **IMPORTANTE:** Cerca **InvestAI Bot** e premi AVVIA
                 """)
 
-        # --- Tab: Sicurezza (Password) ---
+        # --- TAB SICUREZZA ---
         with tab_sec:
             st.warning("Modifica la password di accesso.")
             with st.container(border=True):
@@ -1183,66 +1183,67 @@ def main():
                         else:
                             st.warning("Inserisci la nuova password")
 
-        # --- Tab: My Assets (Gestione Asset Personali) ---
-        with tab_assets:
-            st.info("Gestisci la lista dei tuoi asset preferiti da monitorare.")
+        # --- TAB WATCHLIST (NUOVO) ---
+        with tab_list:
+            st.info("Gestisci qui gli asset che verranno analizzati nella sezione 'Analisi Mercato'.")
             
-            # Recupera la lista degli asset dell'utente
-            # Assicurati che db.get_user_assets(user) ritorni una lista di stringhe (es. ['AAPL', 'BTC-USD'])
-            # Se la funzione non esiste ancora nel DBManager, dovrai crearla.
-            user_assets_list = db.get_user_assets(user) 
+            # Recupera lista attuale dal DB
+            # Restituisce un dict: {Nome: Symbol}
+            user_watchlist = db.get_user_watchlist(user)
             
-            col_add, col_list = st.columns([1, 2])
-            
-            with col_add:
-                with st.container(border=True):
-                    st.subheader("Aggiungi Asset")
-                    new_asset = st.text_input("Simbolo Ticker (es. AAPL)", key="new_asset_input").upper()
-                    
-                    if st.button("➕ Aggiungi", type="primary"):
-                        if new_asset:
-                            # Verifica se l'asset esiste già nella lista
-                            if new_asset in user_assets_list:
-                                st.warning(f"L'asset {new_asset} è già nella tua lista.")
-                            else:
-                                # Aggiungi l'asset al database
-                                # Assicurati che db.add_user_asset(user, new_asset) esista
-                                if db.add_user_asset(user, new_asset):
-                                    st.success(f"Asset {new_asset} aggiunto!")
-                                    time.sleep(1) # Breve pausa per mostrare il messaggio
-                                    st.rerun() # Ricarica la pagina per aggiornare la lista
+            # Sezione Aggiunta
+            with st.expander("➕ Aggiungi un nuovo Asset", expanded=False):
+                c_tk, c_nm, c_bt = st.columns([2, 2, 1])
+                new_ticker = c_tk.text_input("Ticker (es. NVDA, BTC-USD)", key="add_t").upper().strip()
+                new_name = c_nm.text_input("Nome (es. Nvidia)", key="add_n").strip()
+                
+                if c_bt.button("Aggiungi", type="primary", use_container_width=True):
+                    if new_ticker:
+                        with st.spinner("Verifica ticker..."):
+                            if validate_ticker(new_ticker):
+                                display_name = new_name if new_name else new_ticker
+                                if db.add_asset_to_watchlist(user, new_ticker, display_name):
+                                    st.success(f"✅ {display_name} aggiunto!")
+                                    time.sleep(1)
+                                    st.rerun()
                                 else:
-                                    st.error("Errore nell'aggiunta dell'asset. Verifica il ticker.")
-                        else:
-                            st.warning("Inserisci un simbolo.")
-
-            with col_list:
-                with st.container(border=True):
-                    st.subheader("I Tuoi Asset")
-                    
-                    if user_assets_list:
-                        # Mostra gli asset in una tabella o lista con opzione di cancellazione
-                        for asset in user_assets_list:
-                            c1, c2 = st.columns([4, 1])
-                            with c1:
-                                st.markdown(f"**{asset}**")
-                            with c2:
-                                # Usa una chiave unica per ogni bottone
-                                if st.button("🗑️", key=f"del_{asset}"):
-                                    # Rimuovi l'asset dal database
-                                    # Assicurati che db.remove_user_asset(user, asset) esista
-                                    if db.remove_user_asset(user, asset):
-                                        st.success(f"Rimosso {asset}")
-                                        time.sleep(0.5)
-                                        st.rerun()
-                                    else:
-                                        st.error("Errore nella rimozione.")
-                            st.divider()
+                                    st.error("Errore: Asset già presente o database non raggiungibile.")
+                            else:
+                                st.error("❌ Ticker non trovato su Yahoo Finance.")
                     else:
-                        st.write("Non hai ancora aggiunto nessun asset personalizzato.")
+                        st.warning("Scrivi almeno il Ticker.")
+
+            st.divider()
+            
+            # Sezione Lista e Rimozione
+            st.subheader(f"La tua Lista ({len(user_watchlist)})")
+            
+            if user_watchlist:
+                # Ordina alfabeticamente per nome
+                sorted_items = sorted(user_watchlist.items())
+                
+                for name, symbol in sorted_items:
+                    c1, c2, c3 = st.columns([3, 2, 1])
+                    c1.markdown(f"**{name}**")
+                    c2.code(symbol)
+                    if c3.button("🗑️", key=f"del_{symbol}"):
+                        if db.remove_asset_from_watchlist(user, symbol):
+                            st.success("Eliminato!")
+                            time.sleep(0.5)
+                            st.rerun()
+                        else:
+                            st.error("Errore eliminazione.")
+                    st.markdown("<hr style='margin: 5px 0; opacity: 0.1;'>", unsafe_allow_html=True)
+            
+            else:
+                st.info("La tua lista è vuota.")
+                if st.button("🔄 Carica Asset Popolari (Default)"):
+                    db.init_default_watchlist(user)
+                    st.rerun()
 
 if __name__ == "__main__":
     main()
+
 
 
 
