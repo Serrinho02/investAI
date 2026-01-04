@@ -575,7 +575,7 @@ def main():
         valid_pf = [item for item in pf.items() if item[0] in market_data]
         sorted_pf = sorted(valid_pf, key=lambda x: x[1]['pnl_pct'])
 
-if sorted_pf:
+        if sorted_pf:
             cols_adv = st.columns(3)
             for i, (sym, dat) in enumerate(sorted_pf):
                 asset_name = get_asset_name(sym)
@@ -1150,6 +1150,7 @@ if sorted_pf:
 
 if __name__ == "__main__":
     main()
+
 
 
 
