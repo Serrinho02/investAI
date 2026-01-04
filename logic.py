@@ -586,19 +586,24 @@ def generate_portfolio_advice(df, avg_price, current_price):
     risk_score = round(min(10, max(1, base_risk)), 1)
 
     # CONDIZIONI SPECIALI
-    very_stable = atr_pct < 1.5 and abs(pnl_pct) < 3.0
+    time_in_range = (
+        df['Close'].tail(20).max() - df['Close'].tail(20).min()
+    ) / current_price * 100
+    
+    very_stable = atr_pct < 1.5 and time_in_range < 4
     
     # SOGLIE DINAMICHE P&L
     t_low = max(3.0, 1.5 * atr_pct)
     t_mid = max(10.0, 4 * atr_pct)
     t_high = max(25.0, 8 * atr_pct)
+    recent_return = (df['Close'].iloc[-1] - df['Close'].iloc[-5]) / df['Close'].iloc[-5] * 100
 
     # ==================================================
     # 🧠 DECISION ENGINE
     # ==================================================
 
     # 🚨 1. PERICOLO ESTREMO (Priorità Massima)
-    if trend == "BEAR" and pnl_pct < -t_low and has_volume:
+    if trend == "BEAR" and pnl_pct < -t_low and has_volume and recent_return < -5:
         title = "🔪 PERICOLO – COLTELLO CHE CADE"
         advice = (f"Trend ribassista confermato con volumi in aumento (vendite istituzionali). "
                   f"Non mediare ora. Rischio di ulteriori ribassi alto. "
@@ -662,7 +667,7 @@ def generate_portfolio_advice(df, avg_price, current_price):
 
     # 😴 8. DEFAULT
     else:
-        title = "😴 MANTIENI / LATERALE"
+        title = "😴 MANTIENI"
         advice = "Nessun segnale operativo rilevante. Il prezzo sta consolidando. Mantieni la posizione."
         color = "#f5f5f5"
 
@@ -943,6 +948,7 @@ def generate_enhanced_excel_report(df_hist, current_portfolio, transactions_list
             })
 
     return output.getvalue()
+
 
 
 
