@@ -536,37 +536,69 @@ def main():
         st.divider()
         st.subheader("💡 Strategia Operativa")
 
-        # --- LEGENDA (INSERIRE QUI) ---
-        with st.expander("ℹ️ Legenda: Come leggere i Consigli e i Dati", expanded=False):
+        # --- LEGENDA (CORRETTA E DETTAGLIATA) ---
+        with st.expander("ℹ️ Guida Pratica: Come leggere i Consigli e i Dati", expanded=False):
             st.markdown("""
-            <div style="font-size: 0.9rem; line-height: 1.6;">
-                <h4 style="color: #004d40; margin-bottom: 10px;">🤖 Gli Stati Operativi (Cosa fare)</h4>
-                <ul style="list-style-type: none; padding-left: 0;">
-                    <li style="margin-bottom: 8px;">🚀 <b>MOONBAG (Trailing Stop):</b> Hai un ottimo profitto e il trend è fortissimo. <b>Non vendere!</b> Usa solo il Trailing Stop per proteggerti e lascia correre i guadagni.</li>
-                    <li style="margin-bottom: 8px;">📈 <b>TREND SANO:</b> Il prezzo sale in modo costante senza eccessi. Mantieni la posizione tranquillamente.</li>
-                    <li style="margin-bottom: 8px;">💰 <b>TAKE PROFIT / VENDI METÀ:</b> Il prezzo è salito troppo velocemente (RSI alto). È saggio incassare una parte dei profitti ora.</li>
-                    <li style="margin-bottom: 8px;">🛡️ <b>PROTEGGI / INCASSA:</b> Eri in profitto ma il trend è cambiato in Ribassista. Esci prima che il guadagno sparisca.</li>
-                    <li style="margin-bottom: 8px;">💎 <b>ACCUMULO FORTE:</b> Sei in perdita, ma il trend di fondo è Rialzista e ci sono volumi di acquisto. Ottimo momento per mediare il prezzo (DCA).</li>
-                    <li style="margin-bottom: 8px;">🔪 <b>COLTELLO CHE CADE (Falling Knife):</b> Sei in perdita e il trend è Ribassista. <b>Non comprare!</b> È rischioso, il prezzo potrebbe scendere ancora.</li>
+            <div style="font-size: 0.9rem; line-height: 1.6; color: #333;">        
+                <h4 style="color: #004d40; margin-bottom: 5px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">🤖 Gli Stati Operativi (Cosa fare ora)</h4>
+                <p style="font-size: 0.85rem; color: #666;">L'Intelligenza Artificiale analizza il prezzo e ti suggerisce l'azione migliore in base al rischio.</p>   
+                <strong style="color: #2e7d32;">🟢 QUANDO LE COSE VANNO BENE</strong>
+                <ul style="margin-top: 5px;">
+                    <li>🚀 <b>MOONBAG (Trailing Stop):</b> Hai un profitto enorme e il prezzo continua a salire. <b>Non vendere!</b> Usa il "Trailing Stop" (vedi sotto) per proteggerti e goditi la salita finché dura.</li>
+                    <li>📈 <b>TREND SANO / IN SALITA:</b> Il prezzo sale regolarmente. Tutto tranquillo, mantieni la posizione senza paure.</li>
+                    <li>💰 <b>TAKE PROFIT / VENDI METÀ:</b> Hai guadagnato molto in poco tempo. Il mercato è "euforico" (troppo caro). È saggio vendere una parte (es. 30-50%) per incassare i soldi sicuri e lasciare il resto investito.</li>
                 </ul>
-                <hr style="margin: 15px 0; opacity: 0.2;">
-                <h4 style="color: #004d40; margin-bottom: 10px;">📊 Indicatori e Livelli</h4>
+                <strong style="color: #f57f17;">🟡 QUANDO STARE ATTENTI</strong>
+                <ul style="margin-top: 5px;">
+                    <li>😴 <b>STABILE / LATERALE:</b> Il prezzo non si muove. Non perdi soldi, ma non ne guadagni. Pazienta o cerca investimenti migliori.</li>
+                    <li>🧊 <b>COSTO OPPORTUNITÀ:</b> L'asset è fermo da troppo tempo. I tuoi soldi sono "bloccati" e non rendono. Valuta di vendere per comprare qualcosa di più attivo.</li>
+                    <li>🛡️ <b>HOLD (Ritracciamento):</b> Il prezzo è sceso un po' dopo una salita. È normale "respiro" del mercato. Non vendere per panico, il trend è ancora positivo.</li>
+                </ul>
+                <strong style="color: #c62828;">🔴 QUANDO PREOCCUPARSI</strong>
+                <ul style="margin-top: 5px;">
+                    <li>⚠️ <b>MONITORARE / DEBOLEZZA:</b> Il prezzo scende o fa fatica a salire. La situazione è fragile. Non aumentare l'investimento.</li>
+                    <li>🛡️ <b>PROTEGGI IL BOTTINO:</b> Eri in forte guadagno, ma ora il trend sta cambiando in peggio. Esci o stringi lo stop loss per non trasformare un guadagno in una perdita.</li>
+                    <li>🔪 <b>COLTELLO CHE CADE (Falling Knife):</b> Sei in perdita e il prezzo crolla velocemente. <b>Non comprare per mediare!</b> È pericoloso, aspetta che il crollo finisca.</li>
+                </ul>
+                <hr style="margin: 20px 0; border-top: 1px dashed #ccc;">
+                <h4 style="color: #0d47a1; margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">📊 I Numeri Spiegati (Glossario)</h4>
                 <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                        <td width="30%"><b>RSI</b></td>
-                        <td>Indice di Forza Relativa. <b>>70</b>: Caro (Ipercomprato). <b><30</b>: Economico (Ipervenduto).</td>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td width="30%" style="padding: 8px 0;"><b>🛡️ Trailing Stop</b><br><em style="font-size:0.75rem; color:#666;">(Rete di sicurezza)</em></td>
+                        <td style="padding: 8px 0;">
+                            È il livello di prezzo sotto il quale <b>dovresti vendere</b> per proteggerti. 
+                            A differenza di uno Stop fisso, questo sale quando il prezzo sale. 
+                            <br><i>Esempio: Se il Trailing Stop è $100 e il prezzo scende a $99, l'IA suggerisce di uscire.</i>
+                        </td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 8px 0;"><b>🎯 Target</b><br><em style="font-size:0.75rem; color:#666;">(Obiettivo)</em></td>
+                        <td style="padding: 8px 0;">
+                            Il prezzo ideale a cui l'IA prevede che l'asset possa arrivare nel medio termine. 
+                            Il numero tra parentesi (es. +15%) indica quanto manca per arrivarci.
+                        </td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 8px 0;"><b>RSI</b><br><em style="font-size:0.75rem; color:#666;">(Tachimetro)</em></td>
+                        <td style="padding: 8px 0;">
+                            Misura la velocità del prezzo (da 0 a 100).
+                            <br>• <b>> 70 (Surriscaldato):</b> L'asset è caro, probabile discesa a breve.
+                            <br>• <b>< 30 (Sconto):</b> L'asset è sceso troppo, probabile rimbalzo.
+                        </td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 8px 0;"><b>Allocazione</b><br><em style="font-size:0.75rem; color:#666;">(Rischio Peso)</em></td>
+                        <td style="padding: 8px 0;">
+                            Indica quanto questo singolo asset "pesa" sul tuo totale investito.
+                            <br><i>Consiglio: Evita che un singolo asset superi il 20-25% del totale per non rischiare tutto su una sola carta.</i>
+                        </td>
                     </tr>
                     <tr>
-                        <td><b>Dai Massimi</b></td>
-                        <td>Quanto il prezzo è sceso rispetto al picco recente (Drawdown). Utile per capire se è uno sconto o un crollo.</td>
-                    </tr>
-                    <tr>
-                        <td><b>🛡️ Trailing Stop</b></td>
-                        <td>(Chandelier Exit). Uno "Stop Loss" dinamico che sale quando il prezzo sale. Se il prezzo scende sotto questo livello, il trend è tecnicamente finito.</td>
-                    </tr>
-                    <tr>
-                        <td><b>🛑 Supporto</b></td>
-                        <td>Livello di prezzo inferiore dove storicamente i compratori intervengono. Se rotto, si scende.</td>
+                        <td style="padding: 8px 0;"><b>Dai Massimi</b><br><em style="font-size:0.75rem; color:#666;">(Drawdown)</em></td>
+                        <td style="padding: 8px 0;">
+                            Indica quanto il prezzo attuale è più basso rispetto al punto più alto raggiunto di recente.
+                            Se leggi <b>-20%</b>, significa che l'asset è in saldo del 20% rispetto ai suoi massimi.
+                        </td>
                     </tr>
                 </table>
             </div>
@@ -1150,6 +1182,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
