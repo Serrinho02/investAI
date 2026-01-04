@@ -218,16 +218,84 @@ def main():
 
         with st.expander("ℹ️ Legenda Strategica", expanded=False):
             st.markdown("""
-            **Confidence Score (0-100)**: Misura la solidità del segnale basandosi su Trend, Setup, R/R e Backtest storico.
-            
-            - **> 65**: Opportunità eccellente
-            - **40-65**: Segnale valido ma cautela
-            - **< 40**: Segnale debole
-            
-            **Timeframe Backtest**:
-            - **30G/60G**: Trading veloce (Swing)
-            - **90G**: Investimento lungo termine
-            """)
+                <div style="font-size: 0.9rem; color: #333; line-height: 1.5;">
+                    L'algoritmo combina <b>Trend Following</b> (SMA 200) e <b>Mean Reversion</b> (RSI + Bollinger) filtrati dal <b>Momentum</b> (MACD).
+                    <h4 style="margin-top: 15px; color: #004d40;">🏆 Confidence Score (0-100)</h4>
+                    <p style="margin-top: 5px;">
+                        Questo punteggio misura la <b>solidità totale</b> del segnale (Acquista/Golden) basandosi su una media ponderata di 4 fattori: 
+                        Forza del Trend, Qualità del Setup (RSI/Bollinger), Rapporto Rischio/Rendimento attuale e <b>Affidabilità Storica del Backtest</b>.
+                        Più è alto, più il segnale è robusto.
+                    </p>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                        <tr>
+                            <td style="border: 1px solid #ddd; padding: 6px; background-color: #e6f4ea;"><b>> 65 / 100 (ALTO)</b></td>
+                            <td style="border: 1px solid #ddd; padding: 6px;">Opportunità eccellente. Storia e Trend allineati.</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #ddd; padding: 6px; background-color: #fff4cc;"><b>40–65 / 100 (MEDIO)</b></td>
+                            <td style="border: 1px solid #ddd; padding: 6px;">Segnale valido, ma con potenziale debole nel medio termine o rischio elevato. Richiede cautela.</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #ddd; padding: 6px; background-color: #fcfcfc;"><b>< 40 / 100 (BASSO)</b></td>
+                            <td style="border: 1px solid #ddd; padding: 6px;">Segnale tecnico debole o statisticamente inaffidabile. Evita l'ingresso.</td>
+                        </tr>
+                    </table>
+                    <h4 style="margin-top: 15px; color: #004d40;">📊 Analisi Storica e Timeframe (Win Rate / PnL Medio)</h4>
+                    <p>
+                        Il Backtest ti dice <b>cosa è successo in passato</b> dopo un segnale di acquisto simile. 
+                        Usa questi dati per decidere il tuo orizzonte temporale:
+                    </p>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li style="margin-bottom: 8px;">
+                            <b>Breve Termine (30G/60G):</b> Se il Win Rate è alto (> 60%) e il PnL Medio è positivo, è un buon candidato per il <b>Trading Veloce (Swing)</b>.
+                        </li>
+                        <li style="margin-bottom: 8px;">
+                            <b>Lungo Termine (90G):</b> Se il Win Rate e il PnL Medio a 90 Giorni sono positivi, il segnale è robusto per l'<b>Accumulo e l'Investimento (Buy & Hold)</b>.
+                        </li>
+                        <li style="margin-bottom: 8px; color: #b71c1c;">
+                            <b>⚠️ Attenzione:</b> Se il Win Rate a 90 giorni è <b>0%</b>, il segnale è buono solo per il rimbalzo e <b>non deve essere mantenuto a lungo</b>.
+                        </li>
+                    </ul>
+                    <h4 style="margin-top: 20px; color: #222;">🔬 I 7 Scenari Tecnici</h4>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li style="margin-bottom: 8px;">
+                            💎 <b>OPPORTUNITÀ D'ORO (Golden Entry)</b><br>
+                            <i>Setup:</i> Trend Rialzista + Crollo Anomalo (RSI < 30 + Sotto Bollinger).<br>
+                            <i>Logica:</i> Il "Santo Graal" statistico. Un asset fondamentalmente forte (sopra SMA200) è crollato a livelli di ipervenduto estremo.
+                        </li>
+                        <li style="margin-bottom: 8px;">
+                            🛒 <b>ACQUISTA ORA (Buy the Dip)</b><br>
+                            <i>Setup:</i> Trend Rialzista (Prezzo > SMA200) + Ipervenduto.<br>
+                            <i>Logica:</i> Il prezzo è in un trend positivo di fondo ma ha subito un ritracciamento fisiologico.
+                        </li>
+                        <li style="margin-bottom: 8px;">
+                            💰 <b>VENDI PARZIALE (Take Profit)</b><br>
+                            <i>Setup:</i> Trend Rialzista + Estensione Eccessiva.<br>
+                            <i>Logica:</i> Il prezzo è "tirato". L'RSI è in zona critica (> 75).
+                        </li>    
+                        <li style="margin-bottom: 8px;">
+                            🚀 <b>TREND SOLIDO (Hold)</b><br>
+                            <i>Setup:</i> Trend Rialzista + Volatilità Contenuta.<br>
+                            <i>Logica:</i> Il prezzo viaggia sopra la SMA200 senza toccare estremi di volatilità.
+                        </li>
+                        <li style="margin-bottom: 8px;">
+                            ⚠️ <b>TENTATIVO RISCHIOSO (Reversal Trading)</b><br>
+                            <i>Setup:</i> Trend Ribassista + Ipervenduto Estremo.<br>
+                            <i>Logica:</i> Operazione contro-trend ad alto rischio (Dead Cat Bounce).
+                        </li>
+                        <li style="margin-bottom: 8px;">
+                            ⛔ <b>STAI ALLA LARGA (Strong Bearish)</b><br>
+                            <i>Setup:</i> Trend Ribassista + Momentum Negativo.<br>
+                            <i>Logica:</i> Il prezzo è sotto la media a 200 periodi e il MACD conferma che i venditori hanno il controllo.
+                        </li>
+                        <li style="margin-bottom: 8px;">
+                            ✋ <b>ATTENDI (Neutral/Chop)</b><br>
+                            <i>Setup:</i> Segnali Conflittuali.<br>
+                            <i>Logica:</i> Il mercato non ha una direzionalità chiara.
+                        </li>
+                    </ul>
+                </div>
+                """, unsafe_allow_html=True)
 
         with st.expander("🤖 Scansione Automatica", expanded=True):
             if st.button("🔎 Scansiona Mercato", use_container_width=True):
@@ -964,3 +1032,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
