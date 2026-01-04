@@ -179,11 +179,11 @@ def main():
             
             with tab2:
                 nu = st.text_input("Nuovo Username", key="r_u")
-                np = st.text_input("Nuova Password", type="password", key="r_p")
+                new_password = st.text_input("Nuova Password", type="password", key="r_p")
                 if st.button("Crea Account", use_container_width=True):
-                    if db.register_user(nu, np): 
+                    if db.register_user(nu, new_password):
                         st.success("Account creato! Accedi ora.")
-                    else: 
+                    else:
                         st.error("Username già esistente")
         return
 
@@ -1066,6 +1066,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
