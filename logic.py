@@ -530,97 +530,107 @@ def evaluate_strategy_full(df):
 # --- STRATEGIA PORTAFOGLIO AVANZATA ---
 def generate_portfolio_advice(df, avg_price, current_price):
     """
-    Consiglio personalizzato con Trailing Stop (Chandelier) e Analisi Volumi.
-    Ritorna: title, advice, color, trailing_stop_price
+    Consiglio personalizzato con soglie più sensibili.
     """
     if 'RSI' not in df.columns or 'SMA_200' not in df.columns or 'ATR' not in df.columns:
         return "✋ DATI MANCANTI", "Impossibile calcolare strategia.", "#eee", 0.0
 
-    # Ultimi dati disponibili
     last_row = df.iloc[-1]
     rsi = last_row['RSI']
     sma = last_row['SMA_200']
     atr = last_row['ATR']
     vol_now = last_row['Volume']
     
-    # 1. CALCOLO TRAILING STOP (Chandelier Exit Long)
-    # Formula: Massimo Alto degli ultimi 22 giorni - (3 * ATR)
-    # 22 giorni = circa 1 mese di trading. Moltiplicatore 3 è standard per trend following.
+    # Calcolo Trailing Stop
     rolling_high = df['High'].rolling(window=22).max().iloc[-1]
     trailing_stop = rolling_high - (3 * atr)
     
-    # 2. ANALISI VOLUMI (Per distinguere accumulo sano da debolezza)
+    # Analisi Volumi
     vol_avg = df['Volume'].rolling(window=20).mean().iloc[-1]
-    has_volume = vol_now > (vol_avg * 1.2) # Volume 20% sopra la media
+    has_volume = vol_now > (vol_avg * 1.2)
     
-    # Trend e P&L
     trend = "BULL" if current_price > sma else "BEAR"
     pnl_pct = ((current_price - avg_price) / avg_price) * 100
     atr_pct = (atr / current_price) * 100
     
-    # Soglie di volatilità
-    t_low = max(5.0, 2 * atr_pct) 
-    t_mid = max(15.0, 6 * atr_pct)
-    t_high = max(40.0, 12 * atr_pct)
+    # --- MODIFICA SOGLIE (Più sensibili) ---
+    # Prima era max(5.0, 2*atr). Ora abbassiamo a 3.0 e 1.5*atr per catturare movimenti minori.
+    t_low = max(3.0, 1.5 * atr_pct)   
+    t_mid = max(10.0, 4 * atr_pct)    # Prima era 15%
+    t_high = max(25.0, 8 * atr_pct)   # Prima era 40%
 
-    title, advice, color = "✋ MANTIENI", "Situazione stabile.", "#fcfcfc"
+    # Default (Zona Neutra)
+    if trend == "BULL":
+        title = "😴 MANTIENI (Trend OK)"
+        advice = "Il prezzo si muove normalmente nel trend rialzista. Nessuna azione richiesta."
+        color = "#f0f8ff" # Azzurrino
+    else:
+        # Se siamo nella zona neutra ma il trend è BEAR, diamo un avviso leggero
+        title = "⚠️ MONITORARE (Debolezza)"
+        advice = "Siamo vicini al pareggio, ma il trend di fondo è Ribassista. Tieni d'occhio."
+        color = "#fff8e1" # Giallino chiarissimo
     
     # --- LOGICA DECISIONALE ---
     
+    # 1. GRANDI PROFITTI
     if pnl_pct > t_high:
         if trend == "BEAR":
             title = "🚨 INCASSA TUTTO (Trend Rotto)"
-            advice = f"Guadagno eccezionale (+{pnl_pct:.1f}%) ma il trend è diventato Ribassista. Non rischiare, porta a casa il profitto."
-            color = "#ffcccb" # Rosso chiaro
+            advice = f"Grande guadagno (+{pnl_pct:.1f}%) ma il trend è crollato. Porta a casa i soldi."
+            color = "#ffcccb"
         elif rsi > 80:
             title = "💰 VENDI META' (Euforia)"
-            advice = f"RSI estremo ({rsi:.0f}). Il prezzo è verticale. Vendi metà posizione e lascia correre il resto con Stop Loss a ${trailing_stop:.2f}."
+            advice = f"RSI alle stelle ({rsi:.0f}). Vendi metà posizione, sposta lo stop a ${trailing_stop:.2f}."
             color = "#ffdddd"
         else:
             title = "🚀 MOONBAG (Trailing Stop)"
-            advice = f"Trend fortissimo. NON VENDERE. Alza solo lo Stop Loss dinamico a ${trailing_stop:.2f} (Chandelier Exit) e goditi la salita."
-            color = "#e6f4ea" # Verde chiarissimo
+            advice = f"Vola! Non vendere nulla. Alza solo lo Stop Loss dinamico a ${trailing_stop:.2f}."
+            color = "#e6f4ea" 
 
+    # 2. BUONI PROFITTI
     elif t_mid < pnl_pct <= t_high:
         if trend == "BEAR":
             title = "🛡️ PROTEGGI IL BOTTINO"
-            advice = f"Il trend è cambiato in negativo. Hai un ottimo +{pnl_pct:.1f}%. Valuta di uscire o metti uno Stop stretto a ${trailing_stop:.2f}."
-            color = "#fff4cc" # Giallo
+            advice = f"Trend negativo con ottimo utile (+{pnl_pct:.1f}%). Valuta uscita o Stop stretto a ${trailing_stop:.2f}."
+            color = "#fff4cc"
         elif rsi > 70:
             title = "💰 TAKE PROFIT PARZIALE"
-            advice = f"Indicatori saturi. Buon momento per alleggerire. Stop Loss suggerito: ${trailing_stop:.2f}."
+            advice = f"Ottimo gain (+{pnl_pct:.1f}%) e asset 'caro' (RSI > 70). Valuta prese di profitto parziali."
             color = "#ffdddd"
         else:
-            title = "📈 TREND SANO"
-            advice = f"Salita costante. Mantieni la posizione. Stop Loss di protezione: ${trailing_stop:.2f}."
-            color = "#f0f8ff" # Azzurro chiarissimo
+            title = "📈 TREND SANO (Hold)"
+            advice = "Salita solida. Lascia correre i profitti."
+            color = "#e8f5e9" # Verde chiaro
 
+    # 3. PICCOLI PROFITTI (Zona Break Even)
     elif t_low < pnl_pct <= t_mid:
         if trend == "BEAR":
-            title = "⚠️ ATTENZIONE (Break Even)"
-            advice = f"Sei in utile (+{pnl_pct:.1f}%) ma sotto la media a 200 periodi. Alza lo Stop al tuo prezzo di ingresso (${avg_price:.2f}) per non perdere soldi."
+            title = "⚠️ ATTENZIONE (Trend Bear)"
+            advice = f"Sei in utile (+{pnl_pct:.1f}%) ma sotto la media a 200 periodi. Alza lo Stop al prezzo di ingresso."
             color = "#ffffcc"
+        # Se è BULL, resta il default "MANTIENI (Trend OK)" definito sopra
 
+    # 4. PERDITE
     elif pnl_pct < -t_low: 
         if trend == "BULL":
             if rsi < 40:
                 if has_volume:
-                    title = "💎 ACCUMULO FORTE (Volumi Alti)"
-                    advice = "Prezzo a sconto in trend rialzista CON volumi in aumento. È il momento ideale per mediare il prezzo (DCA)."
-                    color = "#b9f6ca" # Verde acceso
+                    title = "💎 ACCUMULO (Volumi Alti)"
+                    advice = "Prezzo a sconto in trend rialzista. Ottimo momento per mediare (DCA)."
+                    color = "#b9f6ca" 
                 else:
-                    title = "🛒 ACCUMULO CAUTO (Volumi Bassi)"
-                    advice = "Il prezzo è a sconto, ma i volumi sono bassi. Puoi accumulare, ma senza esagerare finché non torna forza."
+                    title = "🛒 ACCUMULO CAUTO"
+                    advice = "Prezzo a sconto. Puoi accumulare, ma i volumi non sono ancora convincenti."
                     color = "#ccffcc"
             else:
-                title = "✋ MANTIENI (Attendi Setup)"
-                advice = "Sei in perdita ma il trend regge. Aspetta che l'RSI scenda sotto 40 per mediare."
-                color = "#fcfcfc"
+                title = "✋ HOLD (Ritracciamento)"
+                advice = "Sei in rosso ma il trend regge. Non vendere, ma aspetta prezzi migliori per mediare."
+                color = "#f5f5f5"
         
         elif trend == "BEAR":
-            title = "🔪 COLTELLO CHE CADE (Falling Knife)"
-            advice = f"Attenzione! Sei in perdita e il trend è RIBASSISTA. Non mediare il prezzo ora: rischioso. Stop Loss tecnico a ${trailing_stop:.2f} (se vuoi uscire)."
-            color = "#ffebee" # Rosso molto chiaro
+            title = "🔪 COLTELLO CHE CADE"
+            advice = f"Perdita ({pnl_pct:.1f}%) e trend RIBASSISTA. Non comprare! Valuta Stop Loss a ${trailing_stop:.2f}."
+            color = "#ffebee" 
             
     return title, advice, color, trailing_stop
 
@@ -899,6 +909,7 @@ def generate_enhanced_excel_report(df_hist, current_portfolio, transactions_list
             })
 
     return output.getvalue()
+
 
 
 
