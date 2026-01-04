@@ -271,6 +271,56 @@ class DBManager:
 
         return {k: v for k, v in portfolio.items() if v["qty"] > 0.0001}, history
 
+
+# --- METODI LISTA PREFERITI (Watchlist) ---
+    
+    def get_user_watchlist(self, user):
+        """Recupera la lista asset personalizzata dell'utente."""
+        try:
+            res = self.client.table("user_assets").select("*").eq("username", user).execute()
+            # Ritorna un dizionario {Nome: Symbol} compatibile con la UI
+            watchlist = {row['name'] if row['name'] else row['symbol']: row['symbol'] for row in res.data}
+            return watchlist
+        except Exception as e:
+            logger.error(f"Errore get_watchlist per {user}: {e}")
+            return {}
+
+    def add_asset_to_watchlist(self, user, symbol, name=None):
+        """Aggiunge un asset alla lista personale."""
+        if not name: name = symbol
+        try:
+            self.client.table("user_assets").insert({
+                "username": user, 
+                "symbol": symbol.upper(),
+                "name": name
+            }).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Errore add_asset: {e}")
+            return False
+
+    def remove_asset_from_watchlist(self, user, symbol):
+        """Rimuove un asset."""
+        try:
+            self.client.table("user_assets").delete().eq("username", user).eq("symbol", symbol).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Errore remove_asset: {e}")
+            return False
+            
+    def init_default_watchlist(self, user):
+        """Se l'utente è nuovo, copia i POPULAR_ASSETS nella sua lista."""
+        # Se ha già asset, non fare nulla
+        existing = self.get_user_watchlist(user)
+        if existing: return
+        
+        # Altrimenti popola con i default
+        # Nota: Importa POPULAR_ASSETS localmente per evitare cicli se necessario, 
+        # oppure passalo come argomento. Qui assumiamo sia disponibile globalmente in logic.py
+        for name, sym in POPULAR_ASSETS.items():
+            self.add_asset_to_watchlist(user, sym, name)
+
+
 # --- HELPER HASHING ---
 def hash_password(password) -> str:
     p_str = str(password) if password else ""
@@ -976,6 +1026,7 @@ def estimate_days_to_target(current_price, target_price, atr):
     if days > 30: return days, f"~ 1 Mese e mezzo"
     
     return days, f"~ {days} Giorni"
+
 
 
 
