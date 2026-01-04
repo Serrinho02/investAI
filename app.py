@@ -773,6 +773,7 @@ def main():
 
     # CONSIGLI
     elif page == "💡 Consigli":
+        from logic import generate_portfolio_advice, evaluate_strategy_full, AUTO_SCAN_TICKERS, get_asset_name
         st.title("💡 AI Advisor")
         st.markdown("Analisi completa portafoglio e nuove opportunità.")
 
@@ -1058,6 +1059,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
