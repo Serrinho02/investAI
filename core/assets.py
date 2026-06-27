@@ -96,10 +96,7 @@ POPULAR_ASSETS: dict[str, str] = {
     "Chainlink":            "LINK-USD",
     "Polkadot":             "DOT-USD",
     "Dogecoin":             "DOGE-USD",
-    "Shiba Inu":            "SHIB-USD",
     "NEAR Protocol":        "NEAR-USD",
-    "Sui":                  "SUI-USD",
-    "Pepe":                 "PEPE-USD",
     "Ethereum Classic":     "ETC-USD",
 
     # ── MEGA CAP USA ────────────────────────────────────────────────────────
