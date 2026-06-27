@@ -60,7 +60,7 @@ password_hash = "ad1cfa0eb10e2bc60f4057fb7b3e35318bcd05ab5576758670d5ccbc14a8838
 token = ""
 ```
 
-> Il `password_hash` è SHA-256 di `Canguro22!`
+> Il `password_hash` è SHA-256 di `xxxxxxxxxxx`
 > Per cambiare password in futuro, genera il nuovo hash con:
 > ```bash
 > python3 -c "import hashlib; print(hashlib.sha256('NuovaPassword'.encode()).hexdigest())"
