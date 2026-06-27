@@ -77,7 +77,7 @@ Streamlit Cloud ti dà un URL tipo `https://investai-xyz.streamlit.app`
 
 Aprendo quell'URL vedrai la pagina di login:
 - **Username:** `nicola`
-- **Password:** `Canguro22!`
+- **Password:** `xxxxxxxxxxx!`
 
 ---
 
