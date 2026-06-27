@@ -1,0 +1,21 @@
+# InvestAI v2.0 — Dipendenze
+# Nessun database esterno richiesto
+
+# --- Core ---
+streamlit>=1.35.0
+pandas>=2.0.0
+numpy>=1.26.0
+
+# --- Dati finanziari ---
+yfinance>=0.2.40
+pandas-ta>=0.3.14b0
+
+# --- Visualizzazioni ---
+plotly>=5.20.0
+
+# --- Export Excel ---
+xlsxwriter>=3.2.0
+
+# --- Telegram (opzionale) ---
+pyTelegramBotAPI>=4.21.0
+schedule>=1.2.2
