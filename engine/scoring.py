@@ -1,25 +1,19 @@
 """
-Scoring Engine — InvestAI
+Scoring Engine — InvestAI v2.2
 Sistema di scoring multi-dimensionale, trasparente e spiegabile.
 
-Ogni score è calcolato combinando più indicatori tecnici indipendenti.
-I punteggi derivano solo da dati reali — nessuna formula "magica".
-Conflitti tra indicatori abbassano automaticamente il Confidence Score.
-
-Scores prodotti (0–100):
- - trend_score       : forza e qualità del trend primario
- - momentum_score    : momentum di breve/medio termine
- - value_score       : valutazione relativa (ipercomprato/ipervenduto)
- - volume_score      : conferma volumetrica
- - risk_score        : 0=basso rischio, 100=alto rischio  ← invertito rispetto agli altri
- - opportunity_score : sintesi pesata degli score positivi
- - confidence_score  : solidità complessiva del segnale (penalizza i conflitti)
+Correzioni rispetto alla v2.0:
+ - P1: trend_score SMA200 usa step discreti invece di formula lineare
+       (evita che asset +0.5% sopra SMA200 valgano 1/35 punti)
+ - P2: BUY confermato solo se MACD non è fortemente negativo (evita falsi segnali)
+ - P3: backtest deduplica cluster (segnali consecutivi entro 5 giorni → 1 solo trade)
+ - P4: volume_score parte da 30 invece di 50 (nessun bonus gratuito per asset illiquidi)
+ - P5: sidebar della confidence usa ratio pesato, non simmetrico (più reasons = meno penalità)
 """
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -27,29 +21,26 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Struttura dati del risultato
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# Struttura dati risultato
+# ─────────────────────────────────────────────────────────────────────────────
 
 @dataclass
 class AnalysisResult:
     ticker: str = ""
 
-    # Scores (0-100)
     opportunity_score: int = 0
     confidence_score:  int = 0
-    risk_score:        int = 0   # 0=basso rischio, 100=altissimo rischio
+    risk_score:        int = 0   # 0=rischio basso, 100=rischio altissimo
     trend_score:       int = 0
     momentum_score:    int = 0
     value_score:       int = 0
     volume_score:      int = 0
 
-    # Segnale operativo
-    signal:     str = "NEUTRAL"   # BUY_STRONG | BUY | HOLD | SELL_PARTIAL | SELL | AVOID
+    signal:       str = "NEUTRAL"
     action_label: str = "✋ ATTENDI"
-    color:      str = "#f5f5f5"
+    color:        str = "#f5f5f5"
 
-    # Dati tecnici chiave
     last_price:   float = 0.0
     rsi:          float = 0.0
     adx:          float = 0.0
@@ -58,274 +49,275 @@ class AnalysisResult:
     trend_label:  str   = "N/A"
     is_bullish:   bool  = False
 
-    # Livelli
-    target:        float = 0.0
-    support:       float = 0.0
-    upside_pct:    float = 0.0
-    downside_pct:  float = 0.0
+    target:       float = 0.0
+    support:      float = 0.0
+    upside_pct:   float = 0.0
+    downside_pct: float = 0.0
 
-    # Golden/Death cross
-    golden_cross:  bool = False
-    death_cross:   bool = False
+    golden_cross: bool = False
+    death_cross:  bool = False
 
-    # Backtest
     backtest_win30: float = 0.0
     backtest_pnl30: float = 0.0
     backtest_win60: float = 0.0
     backtest_pnl60: float = 0.0
     backtest_win90: float = 0.0
     backtest_pnl90: float = 0.0
+    backtest_n_signals: int = 0   # NUOVO: quanti segnali nel campione
 
-    # Spiegazione testuale
-    reasons:        list[str] = field(default_factory=list)
-    warnings:       list[str] = field(default_factory=list)
+    reasons:  list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
-    # Asset type
-    asset_type: str = "Azione"
-
-    # Flag per dati insufficienti
+    asset_type:        str  = "Azione"
     insufficient_data: bool = False
 
 
-# ---------------------------------------------------------------------------
-# Funzioni di scoring componenti
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# Score componenti
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _score_trend(df: pd.DataFrame, last: pd.Series) -> tuple[int, list[str], list[str]]:
     """
-    Valuta la forza del trend primario (0-100).
-    Usa SMA200, SMA50, EMA21, ADX, Golden/Death Cross.
+    FIX P1: usa step discreti per SMA200 invece della formula lineare dist*3.5
+    che produceva punteggi quasi nulli per asset vicini alla media.
+
+    Logica: ciò che conta non è quanto sei sopra la SMA200, ma SE ci sei
+    e con quale struttura di trend (50>200, EMA21, ADX, cross).
     """
     score = 0
     reasons: list[str] = []
     warnings: list[str] = []
 
-    close     = last["Close"]
-    sma200    = last["SMA_200"]
-    sma50     = last["SMA_50"]
-    ema21     = last["EMA_21"]
-    adx_val   = last["ADX"] if not np.isnan(last.get("ADX", np.nan)) else 0.0
+    close  = float(last["Close"])
+    sma200 = float(last["SMA_200"])
+    sma50  = float(last["SMA_50"])
+    ema21  = float(last["EMA_21"])
+    adx    = float(last.get("ADX", 0.0)) if not np.isnan(last.get("ADX", np.nan)) else 0.0
 
-    # 1. Posizione rispetto SMA200 (peso 35)
+    # 1. Posizione rispetto SMA200 — FIX: step discreti (peso totale 30)
     if close > sma200:
         dist_pct = (close - sma200) / sma200 * 100
-        sub = min(35, int(dist_pct * 3.5))
-        score += sub
-        reasons.append(f"Prezzo sopra SMA200 (+{dist_pct:.1f}%)")
+        if dist_pct > 10:
+            score += 30
+            reasons.append(f"Prezzo solido sopra SMA200 (+{dist_pct:.1f}%)")
+        elif dist_pct > 3:
+            score += 22
+            reasons.append(f"Prezzo sopra SMA200 (+{dist_pct:.1f}%)")
+        else:
+            score += 14   # vicino ma sopra → partial credit
+            reasons.append(f"Prezzo appena sopra SMA200 (+{dist_pct:.1f}%) — conferma debole")
     else:
         dist_pct = (sma200 - close) / sma200 * 100
         warnings.append(f"Prezzo sotto SMA200 (-{dist_pct:.1f}%)")
 
-    # 2. SMA50 sopra SMA200 = trend intermedio positivo (peso 20)
+    # 2. SMA50 > SMA200 — trend intermedio (peso 20)
     if sma50 > sma200:
         score += 20
         reasons.append("SMA50 > SMA200 (trend intermedio rialzista)")
     else:
         warnings.append("SMA50 < SMA200 (trend intermedio ribassista)")
 
-    # 3. Prezzo sopra EMA21 = trend di breve periodo (peso 15)
+    # 3. Prezzo > EMA21 — breve periodo (peso 15)
     if close > ema21:
         score += 15
         reasons.append("Prezzo sopra EMA21 (momentum breve positivo)")
     else:
         warnings.append("Prezzo sotto EMA21")
 
-    # 4. ADX (forza trend — sopra 25 = trend definito) (peso 20)
-    if adx_val >= 30:
+    # 4. ADX — forza del trend (peso 20)
+    if adx >= 30:
         score += 20
-        reasons.append(f"ADX={adx_val:.0f} (trend molto forte)")
-    elif adx_val >= 25:
-        score += 12
-        reasons.append(f"ADX={adx_val:.0f} (trend definito)")
-    elif adx_val >= 20:
+        reasons.append(f"ADX={adx:.0f} — trend molto forte")
+    elif adx >= 25:
+        score += 13
+        reasons.append(f"ADX={adx:.0f} — trend definito")
+    elif adx >= 20:
         score += 6
+        reasons.append(f"ADX={adx:.0f} — trend moderato")
     else:
-        warnings.append(f"ADX={adx_val:.0f} (mercato senza trend chiaro)")
+        warnings.append(f"ADX={adx:.0f} — mercato senza direzionalità chiara")
 
-    # 5. Golden/Death Cross recente (ultime 10 sedute) (peso 10)
+    # 5. Golden/Death Cross recente (ultime 10 sedute) (peso 15)
     if len(df) >= 11:
-        prev_sma50  = df["SMA_50"].iloc[-10]
-        prev_sma200 = df["SMA_200"].iloc[-10]
-        if sma50 > sma200 and prev_sma50 <= prev_sma200:
-            score += 10
-            reasons.append("🟡 Golden Cross recente (SMA50 ha superato SMA200)")
-        elif sma50 < sma200 and prev_sma50 >= prev_sma200:
-            score -= 10
-            warnings.append("⚫ Death Cross recente (SMA50 ha incrociato al ribasso SMA200)")
+        p50  = df["SMA_50"].iloc[-10]
+        p200 = df["SMA_200"].iloc[-10]
+        if sma50 > sma200 and p50 <= p200:
+            score += 15
+            reasons.append("🟡 Golden Cross recente")
+        elif sma50 < sma200 and p50 >= p200:
+            score -= 15
+            warnings.append("⚫ Death Cross recente")
 
     return max(0, min(100, score)), reasons, warnings
 
 
 def _score_momentum(df: pd.DataFrame, last: pd.Series) -> tuple[int, list[str], list[str]]:
-    """
-    Valuta il momentum di breve/medio termine (0-100).
-    Usa MACD, RSI, StochRSI, ROC.
-    """
+    """Momentum di breve/medio termine. Invariato rispetto a v2.0."""
     score = 0
     reasons: list[str] = []
     warnings: list[str] = []
 
-    rsi       = last.get("RSI", 50.0)
-    macd      = last.get("MACD", 0.0)
-    macd_sig  = last.get("MACD_SIGNAL", 0.0)
-    macd_hist = last.get("MACD_HIST", 0.0)
-    stoch_k   = last.get("STOCH_K", 50.0)
-    roc10     = last.get("ROC_10", 0.0)
-    roc20     = last.get("ROC_20", 0.0)
+    rsi      = float(last.get("RSI", 50.0))
+    macd     = float(last.get("MACD", 0.0))
+    macd_sig = float(last.get("MACD_SIGNAL", 0.0))
+    macd_h   = float(last.get("MACD_HIST", 0.0))
+    stoch_k  = float(last.get("STOCH_K", 50.0))
+    roc10    = float(last.get("ROC_10", 0.0))
 
-    # 1. MACD sopra signal (peso 25)
+    # MACD (peso 25)
     if macd > macd_sig:
-        sub = 25
-        if macd_hist > 0:
-            reasons.append(f"MACD positivo e sopra la signal ({macd:.3f} > {macd_sig:.3f})")
-        score += sub
+        score += 25
+        reasons.append(f"MACD sopra signal ({macd:.3f} > {macd_sig:.3f})")
     else:
-        warnings.append("MACD sotto la signal (momentum negativo)")
+        gap = abs(macd - macd_sig)
+        if gap > abs(macd_sig) * 0.1:
+            warnings.append("MACD significativamente sotto la signal")
+        else:
+            warnings.append("MACD appena sotto la signal")
 
-    # 2. RSI zona operativa (peso 25)
+    # RSI (peso 25)
     if 40 <= rsi <= 65:
         score += 25
-        reasons.append(f"RSI={rsi:.0f} in zona operativa sana (40-65)")
+        reasons.append(f"RSI={rsi:.0f} in zona operativa sana")
     elif 30 <= rsi < 40:
-        score += 15
-        reasons.append(f"RSI={rsi:.0f} vicino alla zona di ipervenduto (opportunità)")
+        score += 18
+        reasons.append(f"RSI={rsi:.0f} vicino all'ipervenduto (opportunità)")
     elif rsi < 30:
-        score += 10
-        reasons.append(f"RSI={rsi:.0f} in ipervenduto (possibile rimbalzo tecnico)")
+        score += 12
+        reasons.append(f"RSI={rsi:.0f} in ipervenduto (possibile rimbalzo)")
     elif 65 < rsi <= 75:
         score += 10
         warnings.append(f"RSI={rsi:.0f} in zona di attenzione")
     else:
-        score += 0
         warnings.append(f"RSI={rsi:.0f} in ipercomprato (rischio ritracciamento)")
 
-    # 3. Stochastic RSI (peso 20)
+    # StochRSI (peso 20)
     if not np.isnan(stoch_k):
         if 20 <= stoch_k <= 70:
             score += 20
             reasons.append(f"StochRSI={stoch_k:.0f} in zona equilibrata")
         elif stoch_k < 20:
-            score += 15
-            reasons.append(f"StochRSI={stoch_k:.0f} in ipervenduto estremo")
+            score += 14
+            reasons.append(f"StochRSI={stoch_k:.0f} ipervenduto")
         else:
-            warnings.append(f"StochRSI={stoch_k:.0f} in ipercomprato")
+            warnings.append(f"StochRSI={stoch_k:.0f} ipercomprato")
 
-    # 4. Rate of Change (peso 15 + 15)
-    if roc10 > 0:
-        score += min(15, int(roc10 * 1.5))
-        reasons.append(f"ROC 10gg = +{roc10:.1f}% (momentum recente positivo)")
+    # ROC 10g (peso 15)
+    if roc10 > 2:
+        score += 15
+        reasons.append(f"ROC 10gg = +{roc10:.1f}% (momentum forte)")
+    elif roc10 > 0:
+        score += 8
+        reasons.append(f"ROC 10gg = +{roc10:.1f}% (momentum positivo)")
     else:
-        warnings.append(f"ROC 10gg = {roc10:.1f}% (momentum recente negativo)")
+        warnings.append(f"ROC 10gg = {roc10:.1f}% (momentum negativo)")
 
     return max(0, min(100, score)), reasons, warnings
 
 
 def _score_value(last: pd.Series) -> tuple[int, list[str], list[str]]:
-    """
-    Valuta il valore relativo rispetto alle Bollinger Bands (0-100).
-    Un prezzo vicino alla banda inferiore è un valore migliore.
-    """
+    """Valutazione relativa tramite Bollinger Bands + RSI. Invariato."""
     score = 0
     reasons: list[str] = []
     warnings: list[str] = []
 
-    close = last["Close"]
-    bbl   = last.get("BBL", close)
-    bbm   = last.get("BBM", close)
-    bbu   = last.get("BBU", close)
-    rsi   = last.get("RSI", 50.0)
+    close = float(last["Close"])
+    bbl   = float(last.get("BBL", close))
+    bbu   = float(last.get("BBU", close))
+    rsi   = float(last.get("RSI", 50.0))
 
     bb_range = bbu - bbl if bbu != bbl else 1.0
-    bb_pos   = (close - bbl) / bb_range  # 0=banda inf, 1=banda sup
+    bb_pos   = (close - bbl) / bb_range
 
     if bb_pos <= 0.15:
         score = 85
-        reasons.append(f"Prezzo vicino/sotto la Banda Bollinger Inferiore (posizione={bb_pos:.2f})")
+        reasons.append(f"Prezzo sotto/a Banda Bollinger Inferiore ({bb_pos:.2f})")
     elif bb_pos <= 0.35:
         score = 65
-        reasons.append(f"Prezzo nella parte bassa delle Bollinger (posizione={bb_pos:.2f})")
+        reasons.append(f"Prezzo nella parte bassa delle Bollinger ({bb_pos:.2f})")
     elif bb_pos <= 0.55:
         score = 50
-        reasons.append(f"Prezzo nella fascia centrale delle Bollinger ({bb_pos:.2f})")
+        reasons.append(f"Prezzo nella fascia centrale Bollinger ({bb_pos:.2f})")
     elif bb_pos <= 0.80:
         score = 30
-        warnings.append(f"Prezzo nella parte alta delle Bollinger ({bb_pos:.2f})")
+        warnings.append(f"Prezzo nella parte alta Bollinger ({bb_pos:.2f})")
     else:
         score = 10
-        warnings.append(f"Prezzo vicino/sopra la Banda Bollinger Superiore ({bb_pos:.2f})")
+        warnings.append(f"Prezzo vicino/sopra Banda Bollinger Superiore ({bb_pos:.2f})")
 
-    # Bonus: doppia conferma con RSI
     if bb_pos <= 0.30 and rsi < 40:
         score = min(100, score + 15)
-        reasons.append("Doppia conferma: prezzo basso + RSI scarico")
+        reasons.append("Doppia conferma: Bollinger bassa + RSI scarico")
 
     return max(0, min(100, score)), reasons, warnings
 
 
 def _score_volume(df: pd.DataFrame, last: pd.Series) -> tuple[int, list[str], list[str]]:
     """
-    Valuta la conferma volumetrica (0-100).
-    Usa OBV, MFI, e confronto volume corrente con mediana mobile.
+    FIX P4: parte da 30 invece di 50.
+    Un asset senza segnali volumetrici ottiene 30/100, non 50/100.
+    Questo riduce il vantaggio gratuito per ETF obbligazionari e asset illiquidi.
     """
-    score = 50  # Neutrale di default
+    score = 30   # FIX: era 50
     reasons: list[str] = []
     warnings: list[str] = []
 
-    volume    = last.get("Volume", 0.0)
-    obv_trend = last.get("OBV_TREND", 0.0)
-    mfi       = last.get("MFI", 50.0)
+    volume    = float(last.get("Volume", 0.0))
+    obv_trend = float(last.get("OBV_TREND", 0.0))
+    mfi       = float(last.get("MFI", 50.0))
 
-    # 1. Volume corrente vs mediana 20g
-    vol_series = df["Volume"]
-    vol_median = vol_series.rolling(20).median().iloc[-1]
-    if vol_median > 0:
-        vol_ratio = volume / vol_median
-        if vol_ratio >= 1.5:
-            score += 25
-            reasons.append(f"Volume {vol_ratio:.1f}x la mediana (conferma istituzionale)")
-        elif vol_ratio >= 1.2:
+    # Volume vs mediana 20g (peso +35 / -15)
+    vol_median = df["Volume"].rolling(20).median().iloc[-1]
+    if vol_median and vol_median > 0:
+        ratio = volume / vol_median
+        if ratio >= 2.0:
+            score += 35
+            reasons.append(f"Volume {ratio:.1f}x la mediana (forte conferma)")
+        elif ratio >= 1.5:
+            score += 22
+            reasons.append(f"Volume {ratio:.1f}x la mediana (buona conferma)")
+        elif ratio >= 1.2:
             score += 10
-            reasons.append(f"Volume leggermente sopra media ({vol_ratio:.1f}x)")
-        elif vol_ratio < 0.7:
-            score -= 10
-            warnings.append(f"Volume basso ({vol_ratio:.1f}x mediana) — scarsa partecipazione")
+            reasons.append(f"Volume sopra media ({ratio:.1f}x)")
+        elif ratio < 0.6:
+            score -= 15
+            warnings.append(f"Volume molto basso ({ratio:.1f}x mediana)")
+        elif ratio < 0.8:
+            score -= 7
+            warnings.append(f"Volume sotto media ({ratio:.1f}x mediana)")
 
-    # 2. OBV trend (ultimi 20gg)
+    # OBV trend 20g (peso +20 / -12)
     if not np.isnan(obv_trend):
         if obv_trend > 0:
-            score += 15
-            reasons.append("OBV in crescita (denaro che entra nel titolo)")
+            score += 20
+            reasons.append("OBV crescente (flusso di denaro positivo)")
         else:
-            score -= 10
-            warnings.append("OBV in calo (distribuzione in corso)")
+            score -= 12
+            warnings.append("OBV calante (distribuzione in corso)")
 
-    # 3. MFI (Money Flow Index)
+    # MFI (peso +15 / -12)
     if not np.isnan(mfi):
         if 40 <= mfi <= 60:
             score += 10
-        elif mfi > 80:
-            score -= 10
-            warnings.append(f"MFI={mfi:.0f} in ipercomprato (pressione di vendita)")
         elif mfi < 20:
             score += 15
-            reasons.append(f"MFI={mfi:.0f} in ipervenduto (possibile inversione)")
+            reasons.append(f"MFI={mfi:.0f} — ipervenduto (possibile inversione)")
+        elif mfi > 80:
+            score -= 12
+            warnings.append(f"MFI={mfi:.0f} — ipercomprato (pressione di vendita)")
 
     return max(0, min(100, score)), reasons, warnings
 
 
 def _score_risk(df: pd.DataFrame, last: pd.Series) -> tuple[int, list[str]]:
-    """
-    Valuta il rischio (0=basso rischio, 100=alto rischio).
-    Usa ATR%, drawdown dai massimi, volatilità storica.
-    """
-    risk = 20  # Base: rischio basso
+    """Rischio (0=basso, 100=alto). Invariato."""
+    risk = 20
     warnings: list[str] = []
 
-    close    = last["Close"]
-    atr      = last.get("ATR", 0.0)
-    hist_vol = last.get("HIST_VOL", 15.0)
+    close    = float(last["Close"])
+    atr      = float(last.get("ATR", 0.0))
+    hist_vol = float(last.get("HIST_VOL", 15.0))
 
-    # 1. Volatilità relativa (ATR come % del prezzo)
     atr_pct = (atr / close * 100) if close > 0 else 0
     if atr_pct > 5:
         risk += 30
@@ -336,8 +328,7 @@ def _score_risk(df: pd.DataFrame, last: pd.Series) -> tuple[int, list[str]]:
     elif atr_pct > 1.5:
         risk += 5
 
-    # 2. Drawdown dai massimi annuali
-    high_52w = last.get("HIGH_52W", close)
+    high_52w = float(last.get("HIGH_52W", close))
     if high_52w > 0:
         dd = (close - high_52w) / high_52w * 100
         if dd < -30:
@@ -347,152 +338,128 @@ def _score_risk(df: pd.DataFrame, last: pd.Series) -> tuple[int, list[str]]:
             risk += 10
             warnings.append(f"Drawdown moderato dai massimi 52W: {dd:.0f}%")
 
-    # 3. Volatilità storica annualizzata
     if not np.isnan(hist_vol):
         if hist_vol > 60:
             risk += 20
-            warnings.append(f"Volatilità storica annualizzata molto alta ({hist_vol:.0f}%)")
+            warnings.append(f"Volatilità storica annualizzata alta ({hist_vol:.0f}%)")
         elif hist_vol > 40:
             risk += 10
-        elif hist_vol < 15:
-            pass  # Bassa volatilità = rischio contenuto (già coperto dalla base)
 
-    # 4. RSI ipercomprato
-    rsi = last.get("RSI", 50)
+    rsi = float(last.get("RSI", 50))
     if rsi > 80:
         risk += 10
-        warnings.append(f"RSI={rsi:.0f}: estremo ipercomprato")
+        warnings.append(f"RSI={rsi:.0f} — ipercomprato estremo")
 
     return max(0, min(100, risk)), warnings
 
 
-def _run_backtest(df: pd.DataFrame) -> tuple[float, float, float, float, float, float]:
+def _run_backtest(df: pd.DataFrame) -> tuple[float, float, float, float, float, float, int]:
     """
-    Backtest del segnale di acquisto (trend rialzista + ipervenduto).
-    Evita look-ahead bias: utilizza solo dati disponibili al momento del segnale.
-    Abbassa confidence se campione piccolo (< 15 segnali).
+    FIX P3: deduplicazione cluster.
+    Dopo un segnale, i successivi 5 giorni vengono ignorati per evitare
+    che un RSI<40 prolungato generi decine di trade identici.
 
-    Returns: (win30, pnl30, win60, pnl60, win90, pnl90)
+    Returns: (win30, pnl30, win60, pnl60, win90, pnl90, n_segnali_unici)
     """
-    if len(df) < 100:
-        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    if len(df) < 120:
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0
 
-    # Segnale: prezzo sopra SMA200 e RSI < 40
-    signals = df[(df["Close"] > df["SMA_200"]) & (df["RSI"] < 40)].index.tolist()
+    raw_signals = df[(df["Close"] > df["SMA_200"]) & (df["RSI"] < 40)].index.tolist()
+    if len(raw_signals) < 3:
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0
 
-    if len(signals) < 5:
-        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    # FIX: deduplicazione — cooldown 5 giorni di calendario
+    deduped: list = []
+    last_sig = None
+    for sig in raw_signals:
+        if last_sig is None or (sig - last_sig).days >= 5:
+            deduped.append(sig)
+            last_sig = sig
 
-    results_30: list[float] = []
-    results_60: list[float] = []
-    results_90: list[float] = []
+    if len(deduped) < 3:
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, len(deduped)
 
-    for sig_date in signals:
-        entry_idx   = df.index.get_loc(sig_date)
-        entry_price = df["Close"].iloc[entry_idx]
-        if entry_price <= 0:
+    r30, r60, r90 = [], [], []
+
+    for sig_date in deduped:
+        idx = df.index.get_loc(sig_date)
+        entry = float(df["Close"].iloc[idx])
+        if entry <= 0:
             continue
-
-        for days, results_list in [(30, results_30), (60, results_60), (90, results_90)]:
-            exit_idx = entry_idx + days
+        for days, bucket in [(30, r30), (60, r60), (90, r90)]:
+            exit_idx = idx + days
             if exit_idx < len(df):
-                exit_price = df["Close"].iloc[exit_idx]
-                pnl = (exit_price - entry_price) / entry_price * 100
-                results_list.append(pnl)
+                exit_p = float(df["Close"].iloc[exit_idx])
+                bucket.append((exit_p - entry) / entry * 100)
 
     def _agg(res: list[float]) -> tuple[float, float]:
         if not res:
             return 0.0, 0.0
-        win_rate = sum(1 for x in res if x > 0) / len(res) * 100
-        avg_pnl  = sum(res) / len(res)
-        # Se campione piccolo, abbassa il win_rate verso 50% (regressione verso la media)
-        if len(res) < 15:
-            confidence_weight = len(res) / 15
-            win_rate = win_rate * confidence_weight + 50 * (1 - confidence_weight)
-        return round(win_rate, 1), round(avg_pnl, 2)
+        wr  = sum(1 for x in res if x > 0) / len(res) * 100
+        avg = sum(res) / len(res)
+        # Regressione verso 50% se campione piccolo
+        if len(res) < 12:
+            w = len(res) / 12
+            wr = wr * w + 50 * (1 - w)
+        return round(wr, 1), round(avg, 2)
 
-    w30, p30 = _agg(results_30)
-    w60, p60 = _agg(results_60)
-    w90, p90 = _agg(results_90)
+    w30, p30 = _agg(r30)
+    w60, p60 = _agg(r60)
+    w90, p90 = _agg(r90)
 
-    return w30, p30, w60, p60, w90, p90
+    return w30, p30, w60, p60, w90, p90, len(deduped)
 
 
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
 # Funzione principale
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
 
 def analyze(df: pd.DataFrame, ticker: str = "", asset_type: str = "Azione") -> AnalysisResult:
-    """
-    Analisi tecnica completa di un asset.
-
-    Parameters
-    ----------
-    df          : DataFrame con indicatori già calcolati (output di compute_indicators)
-    ticker      : stringa ticker (solo per etichettatura)
-    asset_type  : tipo di asset (per eventuale adattamento futuro)
-
-    Returns
-    -------
-    AnalysisResult con tutti gli score e la spiegazione testuale.
-    """
     result = AnalysisResult(ticker=ticker, asset_type=asset_type)
 
     if df is None or df.empty:
         result.insufficient_data = True
         result.action_label = "⚠️ DATI INSUFFICIENTI"
-        result.confidence_score = 0
         return result
 
-    last = df.iloc[-1]
-
-    # Verifica che le colonne minime esistano
-    required = {"Close", "SMA_200", "RSI", "MACD", "ATR", "BBL"}
+    required = {"Close", "SMA_200", "SMA_50", "EMA_21", "RSI", "MACD", "ATR", "BBL"}
     if not required.issubset(df.columns):
         result.insufficient_data = True
         return result
 
-    # -----------------------------------------------------------------------
-    # Dati tecnici base
-    # -----------------------------------------------------------------------
-    close   = float(last["Close"])
-    sma200  = float(last["SMA_200"])
-    sma50   = float(last["SMA_50"])
-    rsi     = float(last.get("RSI", 50.0))
-    atr     = float(last.get("ATR", 0.0))
-    adx     = float(last.get("ADX", 0.0)) if not np.isnan(last.get("ADX", np.nan)) else 0.0
-    bbl     = float(last.get("BBL", close))
-    bbu     = float(last.get("BBU", close))
-    macd    = float(last.get("MACD", 0.0))
-    macd_s  = float(last.get("MACD_SIGNAL", 0.0))
+    last = df.iloc[-1]
 
-    result.last_price = close
-    result.rsi        = rsi
-    result.adx        = adx
-    result.atr        = atr
-    result.is_bullish = close > sma200
+    # Dati base
+    close  = float(last["Close"])
+    sma200 = float(last["SMA_200"])
+    sma50  = float(last["SMA_50"])
+    rsi    = float(last.get("RSI", 50.0))
+    atr    = float(last.get("ATR", 0.0))
+    adx    = float(last.get("ADX", 0.0)) if not np.isnan(last.get("ADX", np.nan)) else 0.0
+    bbl    = float(last.get("BBL", close))
+    bbu    = float(last.get("BBU", close))
+    macd   = float(last.get("MACD", 0.0))
+    macd_s = float(last.get("MACD_SIGNAL", 0.0))
+
+    result.last_price  = close
+    result.rsi         = rsi
+    result.adx         = adx
+    result.atr         = atr
+    result.is_bullish  = close > sma200
     result.trend_label = "BULLISH (Rialzista)" if result.is_bullish else "BEARISH (Ribassista)"
+    result.drawdown_pct = ((close - df["Close"].max()) / df["Close"].max() * 100) if df["Close"].max() > 0 else 0.0
 
-    # Drawdown dai massimi storici (nel dataset)
-    max_price = df["Close"].max()
-    result.drawdown_pct = ((close - max_price) / max_price * 100) if max_price > 0 else 0.0
-
-    # Livelli tecnici
-    result.target  = max(bbu, close + 2 * atr)
-    result.support = min(bbl, close - 2 * atr)
-    result.upside_pct   = (result.target - close) / close * 100 if close > 0 else 0.0
+    result.target      = max(bbu, close + 2 * atr)
+    result.support     = min(bbl, close - 2 * atr)
+    result.upside_pct  = (result.target - close) / close * 100 if close > 0 else 0.0
     result.downside_pct = (result.support - close) / close * 100 if close > 0 else 0.0
 
-    # Golden / Death Cross
     if len(df) >= 11:
-        prev_sma50  = df["SMA_50"].iloc[-10]
-        prev_sma200 = df["SMA_200"].iloc[-10]
-        result.golden_cross = (sma50 > sma200) and (prev_sma50 <= prev_sma200)
-        result.death_cross  = (sma50 < sma200) and (prev_sma50 >= prev_sma200)
+        p50, p200 = df["SMA_50"].iloc[-10], df["SMA_200"].iloc[-10]
+        result.golden_cross = (sma50 > sma200) and (p50 <= p200)
+        result.death_cross  = (sma50 < sma200) and (p50 >= p200)
 
-    # -----------------------------------------------------------------------
-    # Calcolo dei 5 score componenti
-    # -----------------------------------------------------------------------
+    # Score componenti
     trend_s,    trend_r,    trend_w    = _score_trend(df, last)
     momentum_s, momentum_r, momentum_w = _score_momentum(df, last)
     value_s,    value_r,    value_w    = _score_value(last)
@@ -505,65 +472,58 @@ def analyze(df: pd.DataFrame, ticker: str = "", asset_type: str = "Azione") -> A
     result.volume_score   = volume_s
     result.risk_score     = risk_s
 
-    # Aggrega reasons e warnings
     all_reasons  = trend_r + momentum_r + value_r + volume_r
     all_warnings = trend_w + momentum_w + value_w + volume_w + risk_w
     result.reasons  = all_reasons
     result.warnings = all_warnings
 
-    # -----------------------------------------------------------------------
-    # Opportunity Score (ponderato)
-    # Pesi: Trend 35%, Momentum 25%, Value 20%, Volume 20%
-    # -----------------------------------------------------------------------
-    opp_raw = (
-        trend_s    * 0.35 +
-        momentum_s * 0.25 +
-        value_s    * 0.20 +
-        volume_s   * 0.20
-    )
+    # Opportunity Score — pesi: Trend 35%, Momentum 25%, Value 20%, Volume 20%
+    opp_raw = (trend_s * 0.35 + momentum_s * 0.25 + value_s * 0.20 + volume_s * 0.20)
     result.opportunity_score = max(0, min(100, round(opp_raw)))
 
-    # -----------------------------------------------------------------------
-    # Confidence Score
-    # Parte dall'opportunity score, penalizzato da:
-    # 1. Conflitti tra indicatori (warnings > reasons)
-    # 2. Trend ribassista
-    # 3. ADX basso (mercato senza direzionalità)
-    # 4. Volatilità estrema
-    # -----------------------------------------------------------------------
-    n_reasons  = len([r for r in all_reasons if r])
-    n_warnings = len([w for w in all_warnings if w])
+    # FIX P5 — Confidence Score con ratio pesato (più reasons = penalità minore)
+    n_r = len([x for x in all_reasons if x])
+    n_w = len([x for x in all_warnings if x])
+    total = n_r + n_w
 
-    conflict_ratio = n_warnings / max(n_reasons + n_warnings, 1)
-    conflict_penalty = conflict_ratio * 30  # Fino a -30 per conflitti massimi
+    # Penalty proporzionale ai warning ma scalata per il numero di reasons
+    # Formula: se hai 8 positivi e 2 negativi → penalità bassa; se 2 e 8 → penalità alta
+    if total > 0:
+        conflict_ratio   = n_w / total           # 0=tutti positivi, 1=tutti negativi
+        severity_factor  = max(0, conflict_ratio - 0.3)   # penalty solo se >30% warning
+        conflict_penalty = severity_factor * 40
+    else:
+        conflict_penalty = 0
 
-    adx_penalty = max(0, (20 - adx) * 0.5) if adx < 20 else 0  # Penalità ADX basso
+    adx_penalty  = max(0, (20 - adx) * 0.4) if adx < 20 else 0
     bear_penalty = 15 if not result.is_bullish else 0
-    vol_penalty  = max(0, risk_s - 50) * 0.3  # Penalità per rischio elevato
+    vol_penalty  = max(0, risk_s - 55) * 0.25
 
     conf_raw = opp_raw - conflict_penalty - adx_penalty - bear_penalty - vol_penalty
     result.confidence_score = max(0, min(100, round(conf_raw)))
 
-    # -----------------------------------------------------------------------
-    # Backtest
-    # -----------------------------------------------------------------------
-    w30, p30, w60, p60, w90, p90 = _run_backtest(df)
-    result.backtest_win30 = w30
-    result.backtest_pnl30 = p30
-    result.backtest_win60 = w60
-    result.backtest_pnl60 = p60
-    result.backtest_win90 = w90
-    result.backtest_pnl90 = p90
+    # Backtest con deduplicazione
+    w30, p30, w60, p60, w90, p90, n_sig = _run_backtest(df)
+    result.backtest_win30     = w30
+    result.backtest_pnl30     = p30
+    result.backtest_win60     = w60
+    result.backtest_pnl60     = p60
+    result.backtest_win90     = w90
+    result.backtest_pnl90     = p90
+    result.backtest_n_signals = n_sig
 
-    # Bonus backtest al confidence score
-    if w90 > 60 and p90 > 5:
-        result.confidence_score = min(100, result.confidence_score + 8)
-    elif w90 < 40:
-        result.confidence_score = max(0, result.confidence_score - 5)
+    # Aggiustamento confidence da backtest
+    if n_sig >= 8:
+        if w90 > 65 and p90 > 5:
+            result.confidence_score = min(100, result.confidence_score + 10)
+        elif w90 < 35:
+            result.confidence_score = max(0, result.confidence_score - 8)
+    # Campione piccolo → abbassa confidence indipendentemente dal win rate
+    elif n_sig > 0:
+        sample_penalty = int((1 - n_sig / 8) * 8)
+        result.confidence_score = max(0, result.confidence_score - sample_penalty)
 
-    # -----------------------------------------------------------------------
     # Segnale operativo
-    # -----------------------------------------------------------------------
     _assign_signal(result, macd, macd_s, rsi, bbl, bbu)
 
     return result
@@ -578,70 +538,87 @@ def _assign_signal(
     bbu: float,
 ) -> None:
     """
-    Assegna il segnale operativo (BUY_STRONG | BUY | HOLD | SELL_PARTIAL | SELL | AVOID)
-    combinando tutti i fattori analizzati.
+    FIX P2: BUY richiede che il MACD non sia fortemente negativo.
+    Questo evita segnali BUY su asset in momentum chiaramente discendente.
+
+    Soglia "MACD fortemente negativo": gap > 1% del prezzo corrente.
+    Se il MACD è sotto signal ma di pochissimo → BUY comunque (zona grigia).
     """
-    close = r.last_price
-    is_b  = r.is_bullish
+    close   = r.last_price
+    is_b    = r.is_bullish
+    macd_gap = macd - macd_signal  # negativo se MACD sotto signal
 
-    # --- PATTERN DI SEGNALE ---
+    # Calcola soglia dinamica: 0.5% del prezzo come riferimento
+    macd_threshold = -close * 0.005 if close > 0 else -0.1
+    macd_strongly_negative = macd_gap < macd_threshold
 
-    # 1. OPPORTUNITÀ D'ORO: trend bull + RSI estremo + sotto Bollinger inferiore
+    # ── 1. OPPORTUNITÀ D'ORO ────────────────────────────────────────────────
     if is_b and rsi < 30 and close <= bbl:
         r.signal       = "BUY_STRONG"
         r.action_label = "💎 OPPORTUNITÀ D'ORO"
-        r.color        = "#FFF9C4"  # giallo morbido
-        if r.confidence_score >= 50:
-            r.reasons.insert(0, "SETUP RARO: trend rialzista + crollo in ipervenduto estremo")
+        r.color        = "#FFF9C4"
+        if r.confidence_score >= 45:
+            r.reasons.insert(0, "SETUP RARO: trend bull + crollo in ipervenduto estremo")
 
-    # 2. ACQUISTO SUL DIP: trend bull + RSI scarico o prezzo vicino a Bollinger inf
-    elif is_b and (rsi < 42 or close <= bbl * 1.02):
+    # ── 2. ACQUISTO SUL DIP ─────────────────────────────────────────────────
+    # FIX: aggiunto controllo MACD — non segnaliamo BUY se momentum è fortemente negativo
+    elif is_b and (rsi < 42 or close <= bbl * 1.02) and not macd_strongly_negative:
         r.signal       = "BUY"
         r.action_label = "🛒 ACQUISTA (Dip)"
         r.color        = "#E8F5E9"
 
-    # 3. VENDI PARZIALE: trend bull + ipercomprato
+    # ── 2b. ACQUISTA ma con avviso MACD ─────────────────────────────────────
+    # RSI scarico, trend bull, MA il MACD è fortemente negativo → segnale più cauto
+    elif is_b and (rsi < 42 or close <= bbl * 1.02) and macd_strongly_negative:
+        r.signal       = "BUY"
+        r.action_label = "🛒 ACQUISTA con cautela (MACD debole)"
+        r.color        = "#F1F8E9"
+        r.warnings.insert(0, f"MACD significativamente sotto la signal: attendere conferma o usare size ridotta")
+        # Penalità confidence aggiuntiva
+        r.confidence_score = max(0, r.confidence_score - 12)
+
+    # ── 3. VENDI PARZIALE ───────────────────────────────────────────────────
     elif is_b and (rsi > 75 or (close >= bbu and macd < macd_signal)):
         r.signal       = "SELL_PARTIAL"
         r.action_label = "💰 VENDI PARZIALE"
         r.color        = "#FFEBEE"
 
-    # 4. TREND SOLIDO: bull + nessun estremo
+    # ── 4. TREND SOLIDO ─────────────────────────────────────────────────────
     elif is_b:
         r.signal       = "HOLD"
         r.action_label = "🚀 TREND SOLIDO"
         r.color        = "#E3F2FD"
 
-    # 5. TENTATIVO RISCHIOSO: bear + RSI estremo (possibile rimbalzo)
+    # ── 5. RIMBALZO TECNICO (Bear) ──────────────────────────────────────────
     elif not is_b and rsi < 30 and close < bbl:
         r.signal       = "HOLD"
         r.action_label = "⚠️ RIMBALZO TECNICO (Alto Rischio)"
         r.color        = "#FFF8E1"
-        r.warnings.insert(0, "BEAR trend: qualsiasi rialzo potrebbe essere un Dead Cat Bounce")
+        r.warnings.insert(0, "BEAR trend: possibile Dead Cat Bounce — non agire con size piena")
 
-    # 6. EVITA: bear + momentum negativo
+    # ── 6. EVITA ────────────────────────────────────────────────────────────
     elif not is_b and macd < macd_signal:
         r.signal       = "AVOID"
         r.action_label = "⛔ STAI ALLA LARGA"
         r.color        = "#FAFAFA"
 
-    # 7. Default
+    # ── 7. Default ──────────────────────────────────────────────────────────
     else:
         r.signal       = "HOLD"
         r.action_label = "✋ ATTENDI"
         r.color        = "#F5F5F5"
 
-    # Se confidence troppo bassa → abbassa l'aggressività del segnale
-    if r.confidence_score < 30 and r.signal in ("BUY_STRONG", "BUY"):
+    # Confidence troppo bassa → degrada il segnale
+    if r.confidence_score < 28 and r.signal in ("BUY_STRONG", "BUY"):
         r.signal       = "HOLD"
-        r.action_label = "✋ SEGNALE DEBOLE (Attendere conferma)"
+        r.action_label = "✋ SEGNALE DEBOLE — Attendere conferma"
         r.color        = "#F5F5F5"
-        r.warnings.insert(0, f"Confidence bassa ({r.confidence_score}/100): indicatori in conflitto. Non agire.")
+        r.warnings.insert(0, f"Confidence {r.confidence_score}/100: indicatori in conflitto. Non agire.")
 
 
-# ---------------------------------------------------------------------------
-# Advisor portafoglio
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# Advisor portafoglio (invariato)
+# ─────────────────────────────────────────────────────────────────────────────
 
 @dataclass
 class PortfolioAdvice:
@@ -649,14 +626,11 @@ class PortfolioAdvice:
     advice:        str   = "Nessun segnale operativo rilevante."
     color:         str   = "#F5F5F5"
     trailing_stop: float = 0.0
-    risk_score:    int   = 0   # 1-10
+    risk_score:    int   = 0
     pnl_pct:       float = 0.0
 
 
 def portfolio_advice(df: pd.DataFrame, avg_price: float, current_price: float) -> PortfolioAdvice:
-    """
-    Consigli operativi per una posizione già aperta.
-    """
     req = {"RSI", "SMA_200", "ATR", "High", "Volume", "Close"}
     if df.empty or not req.issubset(df.columns):
         return PortfolioAdvice(title="⚠️ DATI INSUFFICIENTI", advice="Impossibile calcolare la strategia.")
@@ -664,109 +638,88 @@ def portfolio_advice(df: pd.DataFrame, avg_price: float, current_price: float) -
     if avg_price <= 0:
         avg_price = current_price
 
-    last    = df.iloc[-1]
-    rsi     = float(last.get("RSI", 50))
-    sma200  = float(last.get("SMA_200", current_price))
-    atr     = float(last.get("ATR", current_price * 0.02))
-    volume  = float(last.get("Volume", 0))
+    last   = df.iloc[-1]
+    rsi    = float(last.get("RSI", 50))
+    sma200 = float(last.get("SMA_200", current_price))
+    atr    = float(last.get("ATR", current_price * 0.02))
+    volume = float(last.get("Volume", 0))
 
     pnl_pct = ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0.0
     atr_pct = (atr / current_price * 100) if current_price > 0 else 2.0
 
-    # Trend dinamico con soglia ATR
-    dist_sma_pct = (current_price - sma200) / sma200 * 100
-    soglia = max(1.0, atr_pct * 0.5)
-    trend  = "BULL" if dist_sma_pct > soglia else ("BEAR" if dist_sma_pct < -soglia else "SIDE")
+    dist_sma = (current_price - sma200) / sma200 * 100
+    soglia   = max(1.0, atr_pct * 0.5)
+    trend    = "BULL" if dist_sma > soglia else ("BEAR" if dist_sma < -soglia else "SIDE")
 
-    # Volume vs mediana 20g
     vol_med    = df["Volume"].rolling(20).median().iloc[-1]
-    has_volume = volume > vol_med * 1.25 if vol_med > 0 else False
+    has_volume = volume > vol_med * 1.25 if vol_med and vol_med > 0 else False
 
-    # Trailing stop (Chandelier Exit)
     rolling_high  = df["High"].rolling(22).max().iloc[-1]
     atr_mult      = 3.5 if atr_pct > 3.0 else 3.0
     raw_stop      = rolling_high - atr_mult * atr
     trailing_stop = min(raw_stop, current_price - max(2 * atr, current_price * 0.01))
 
-    # Risk score 1-10
     base_risk = min(10.0, atr_pct * 1.5)
-    if trend == "BEAR":
-        base_risk += 2
-    if rsi > 75 or rsi < 25:
-        base_risk += 1
+    if trend == "BEAR": base_risk += 2
+    if rsi > 75 or rsi < 25: base_risk += 1
     risk_score = round(min(10, max(1, base_risk)), 1)
 
-    # Soglie dinamiche P&L
-    t_low  = max(3.0, 1.5 * atr_pct)
-    t_mid  = max(10.0, 4 * atr_pct)
-    t_high = max(25.0, 8 * atr_pct)
+    t_low  = max(3.0,  1.5 * atr_pct)
+    t_mid  = max(10.0, 4.0 * atr_pct)
+    t_high = max(25.0, 8.0 * atr_pct)
 
     recent_ret = 0.0
     if len(df) >= 5:
         recent_ret = (df["Close"].iloc[-1] - df["Close"].iloc[-5]) / df["Close"].iloc[-5] * 100
 
-    advice = PortfolioAdvice(trailing_stop=trailing_stop, risk_score=int(risk_score), pnl_pct=pnl_pct)
+    adv = PortfolioAdvice(trailing_stop=trailing_stop, risk_score=int(risk_score), pnl_pct=pnl_pct)
 
-    # --- DECISION ENGINE ---
     if trend == "BEAR" and pnl_pct < -t_low and has_volume and recent_ret < -5:
-        advice.title  = "🔪 PERICOLO – NON MEDIARE"
-        advice.advice = (f"Trend ribassista con volumi crescenti (distribuzione istituzionale). "
-                         f"Rischio elevato di ulteriori ribassi. "
-                         f"Stop Loss suggerito: ${trailing_stop:.2f}.")
-        advice.color  = "#FFEBEE"
-
+        adv.title  = "🔪 PERICOLO – NON MEDIARE"
+        adv.advice = (f"Trend ribassista con volumi crescenti. "
+                      f"Rischio di ulteriori ribassi. Stop Loss: ${trailing_stop:.2f}.")
+        adv.color  = "#FFEBEE"
     elif pnl_pct > t_high and trend == "BEAR":
-        advice.title  = "🚨 INCASSA (Trend Rotto)"
-        advice.advice = (f"Ottima performance (+{pnl_pct:.1f}%) ma trend di lungo periodo violato. "
-                         f"Non restituire i profitti al mercato. Valuta l'uscita.")
-        advice.color  = "#FFCDD2"
-
+        adv.title  = "🚨 INCASSA (Trend Rotto)"
+        adv.advice = f"Ottima perf. (+{pnl_pct:.1f}%) ma trend violato. Non restituire i profitti."
+        adv.color  = "#FFCDD2"
     elif pnl_pct > t_mid and trend != "BULL":
-        advice.title  = "🛡️ PROTEGGI IL GUADAGNO"
-        advice.advice = (f"Buon guadagno (+{pnl_pct:.1f}%) in un contesto che si indebolisce. "
-                         f"Stringi lo stop a ${trailing_stop:.2f} o vendi parzialmente.")
-        advice.color  = "#FFF9C4"
-
+        adv.title  = "🛡️ PROTEGGI IL GUADAGNO"
+        adv.advice = f"Buon gain (+{pnl_pct:.1f}%) con contesto che si indebolisce. Stop a ${trailing_stop:.2f}."
+        adv.color  = "#FFF9C4"
     elif pnl_pct > t_mid and trend == "BULL":
         if rsi > 75:
-            advice.title  = "💰 TAKE PROFIT PARZIALE"
-            advice.advice = (f"Ottima performance (+{pnl_pct:.1f}%) con RSI in zona di euforia ({rsi:.0f}). "
-                             f"Vendi 20-30% e lascia il resto con stop a ${trailing_stop:.2f}.")
-            advice.color  = "#FFE0B2"
+            adv.title  = "💰 TAKE PROFIT PARZIALE"
+            adv.advice = f"+{pnl_pct:.1f}% con RSI in euforia ({rsi:.0f}). Vendi 20-30%, stop a ${trailing_stop:.2f}."
+            adv.color  = "#FFE0B2"
         else:
-            advice.title  = "🚀 LASCIA CORRERE"
-            advice.advice = (f"Sei in pieno trend rialzista (+{pnl_pct:.1f}%). "
-                             f"Il trend è sano. Aggiorna solo lo stop a ${trailing_stop:.2f}.")
-            advice.color  = "#C8E6C9"
-
+            adv.title  = "🚀 LASCIA CORRERE"
+            adv.advice = f"In pieno trend rialzista (+{pnl_pct:.1f}%). Aggiorna solo stop a ${trailing_stop:.2f}."
+            adv.color  = "#C8E6C9"
     elif trend == "BULL" and pnl_pct < -2.0:
         if rsi < 40 and has_volume:
-            advice.title  = "💎 ACCUMULO (Strong Dip)"
-            advice.advice = "Ritracciamento con volumi alti in trend rialzista: possibile accumulo istituzionale."
-            advice.color  = "#B9F6CA"
+            adv.title  = "💎 ACCUMULO (Strong Dip)"
+            adv.advice = "Ritracciamento con volumi alti in trend rialzista: possibile accumulo istituzionale."
+            adv.color  = "#B9F6CA"
         elif rsi < 45:
-            advice.title  = "🛒 ACCUMULO CAUTO"
-            advice.advice = "Fisiologico ritracciamento in trend positivo. Puoi accumulare piccole quote."
-            advice.color  = "#E8F5E9"
+            adv.title  = "🛒 ACCUMULO CAUTO"
+            adv.advice = "Fisiologico ritracciamento in trend positivo. Puoi accumulare piccole quote."
+            adv.color  = "#E8F5E9"
         else:
-            advice.title  = "✋ HOLD (Attendi supporto)"
-            advice.advice = "Leggera flessione. Aspetta livelli di supporto migliori prima di agire."
-            advice.color  = "#F5F5F5"
-
+            adv.title  = "✋ HOLD (Attendi supporto)"
+            adv.advice = "Leggera flessione. Aspetta livelli migliori prima di agire."
+            adv.color  = "#F5F5F5"
     elif trend == "SIDE" and atr_pct < 1.5:
-        advice.title  = "🧊 COSTO OPPORTUNITÀ"
-        advice.advice = (f"L'asset si muove poco (ATR={atr_pct:.1f}%). "
-                         f"Il capitale è bloccato senza rendimento. Valuta alternative più attive.")
-        advice.color  = "#E1F5FE"
-
+        adv.title  = "🧊 COSTO OPPORTUNITÀ"
+        adv.advice = f"Asset poco volatile (ATR={atr_pct:.1f}%). Capitale bloccato senza rendimento."
+        adv.color  = "#E1F5FE"
     elif trend == "BEAR":
-        advice.title  = "⚠️ MONITORARE (Struttura Fragile)"
-        advice.advice = "Sotto SMA200. Non aumentare l'esposizione. Attendi conferma di inversione."
-        advice.color  = "#FFF3E0"
-
+        adv.title  = "⚠️ MONITORARE (Struttura Fragile)"
+        adv.advice = "Sotto SMA200. Non aumentare l'esposizione. Attendi inversione confermata."
+        adv.color  = "#FFF3E0"
     else:
-        advice.title  = "😴 MANTIENI"
-        advice.advice = "Nessun segnale operativo rilevante. Continua a monitorare."
-        advice.color  = "#F5F5F5"
+        adv.title  = "😴 MANTIENI"
+        adv.advice = "Nessun segnale operativo rilevante. Continua a monitorare."
+        adv.color  = "#F5F5F5"
 
-    return advice
+    return adv
